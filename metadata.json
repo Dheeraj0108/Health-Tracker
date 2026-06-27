@@ -1,0 +1,6 @@
+{
+  "name": "Health Tracker",
+  "description": "A comprehensive health tracker to log water, caffeine, exercise, and food with photo snap capability, featuring daily progress charts, local goal-setting, and Gemini-powered personalized nutritional insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
