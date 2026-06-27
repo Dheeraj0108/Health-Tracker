@@ -13,6 +13,7 @@ import com.example.data.model.WaterLog
 import com.example.data.model.BodyLog
 import com.example.data.model.ExerciseRoutine
 import com.example.data.model.WeeklyPlan
+import com.example.data.model.SleepLog
 import com.example.data.repository.HealthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -26,7 +27,125 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-class HealthViewModel(private val repository: HealthRepository) : ViewModel() {
+import android.content.Context
+import kotlinx.coroutines.flow.asStateFlow
+
+class HealthViewModel(private val repository: HealthRepository, private val context: Context) : ViewModel() {
+
+    private val prefs = context.getSharedPreferences("user_settings", Context.MODE_PRIVATE)
+
+    private val _userAge = MutableStateFlow(prefs.getInt("user_age", 25))
+    val userAge = _userAge.asStateFlow()
+
+    private val _userWeight = MutableStateFlow(prefs.getFloat("user_weight", 70.0f).toDouble())
+    val userWeight = _userWeight.asStateFlow()
+
+    private val _userWaist = MutableStateFlow(prefs.getFloat("user_waist", 80.0f).toDouble())
+    val userWaist = _userWaist.asStateFlow()
+
+    private val _userChest = MutableStateFlow(prefs.getFloat("user_chest", 95.0f).toDouble())
+    val userChest = _userChest.asStateFlow()
+
+    private val _userHips = MutableStateFlow(prefs.getFloat("user_hips", 90.0f).toDouble())
+    val userHips = _userHips.asStateFlow()
+
+    private val _userBiceps = MutableStateFlow(prefs.getFloat("user_biceps", 32.0f).toDouble())
+    val userBiceps = _userBiceps.asStateFlow()
+
+    private val _userThighs = MutableStateFlow(prefs.getFloat("user_thighs", 50.0f).toDouble())
+    val userThighs = _userThighs.asStateFlow()
+
+    private val _weightUnit = MutableStateFlow(prefs.getString("weight_unit", "kg") ?: "kg")
+    val weightUnit = _weightUnit.asStateFlow()
+
+    private val _gramsUnit = MutableStateFlow(prefs.getString("grams_unit", "g") ?: "g")
+    val gramsUnit = _gramsUnit.asStateFlow()
+
+    private val _volumeUnit = MutableStateFlow(prefs.getString("volume_unit", "ml") ?: "ml")
+    val volumeUnit = _volumeUnit.asStateFlow()
+
+    private val _googleUserSignedIn = MutableStateFlow(prefs.getBoolean("google_user_signed_in", false))
+    val googleUserSignedIn = _googleUserSignedIn.asStateFlow()
+
+    private val _googleUserName = MutableStateFlow(prefs.getString("google_user_name", "") ?: "")
+    val googleUserName = _googleUserName.asStateFlow()
+
+    private val _googleUserEmail = MutableStateFlow(prefs.getString("google_user_email", "") ?: "")
+    val googleUserEmail = _googleUserEmail.asStateFlow()
+
+    private val _googleUserPhoto = MutableStateFlow(prefs.getString("google_user_photo", "") ?: "")
+    val googleUserPhoto = _googleUserPhoto.asStateFlow()
+
+    fun updatePersonalDetails(
+        age: Int,
+        weight: Double,
+        waist: Double,
+        chest: Double,
+        hips: Double,
+        biceps: Double,
+        thighs: Double
+    ) {
+        prefs.edit().apply {
+            putInt("user_age", age)
+            putFloat("user_weight", weight.toFloat())
+            putFloat("user_waist", waist.toFloat())
+            putFloat("user_chest", chest.toFloat())
+            putFloat("user_hips", hips.toFloat())
+            putFloat("user_biceps", biceps.toFloat())
+            putFloat("user_thighs", thighs.toFloat())
+            apply()
+        }
+        _userAge.value = age
+        _userWeight.value = weight
+        _userWaist.value = waist
+        _userChest.value = chest
+        _userHips.value = hips
+        _userBiceps.value = biceps
+        _userThighs.value = thighs
+    }
+
+    fun updateWeightUnit(unit: String) {
+        prefs.edit().putString("weight_unit", unit).apply()
+        _weightUnit.value = unit
+    }
+
+    fun updateGramsUnit(unit: String) {
+        prefs.edit().putString("grams_unit", unit).apply()
+        _gramsUnit.value = unit
+    }
+
+    fun updateVolumeUnit(unit: String) {
+        prefs.edit().putString("volume_unit", unit).apply()
+        _volumeUnit.value = unit
+    }
+
+    fun signInWithGoogle(name: String, email: String, photo: String) {
+        prefs.edit().apply {
+            putBoolean("google_user_signed_in", true)
+            putString("google_user_name", name)
+            putString("google_user_email", email)
+            putString("google_user_photo", photo)
+            apply()
+        }
+        _googleUserSignedIn.value = true
+        _googleUserName.value = name
+        _googleUserEmail.value = email
+        _googleUserPhoto.value = photo
+    }
+
+    fun signOutFromGoogle() {
+        prefs.edit().apply {
+            putBoolean("google_user_signed_in", false)
+            putString("google_user_name", "")
+            putString("google_user_email", "")
+            putString("google_user_photo", "")
+            apply()
+        }
+        _googleUserSignedIn.value = false
+        _googleUserName.value = ""
+        _googleUserEmail.value = ""
+        _googleUserPhoto.value = ""
+    }
 
     val waterLogs: StateFlow<List<WaterLog>> = repository.allWaterLogs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -50,6 +169,9 @@ class HealthViewModel(private val repository: HealthRepository) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val plans: StateFlow<List<WeeklyPlan>> = repository.allPlans
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val sleepLogs: StateFlow<List<SleepLog>> = repository.allSleepLogs
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // UI Status states
@@ -94,6 +216,18 @@ class HealthViewModel(private val repository: HealthRepository) : ViewModel() {
     fun deleteCaffeineLog(id: Int) {
         viewModelScope.launch {
             repository.deleteCaffeineLog(id)
+        }
+    }
+
+    fun logSleep(durationHours: Double, quality: Int, notes: String? = null) {
+        viewModelScope.launch {
+            repository.insertSleepLog(SleepLog(durationHours = durationHours, quality = quality, notes = notes))
+        }
+    }
+
+    fun deleteSleepLog(id: Int) {
+        viewModelScope.launch {
+            repository.deleteSleepLog(id)
         }
     }
 
@@ -285,6 +419,16 @@ class HealthViewModel(private val repository: HealthRepository) : ViewModel() {
         return exerciseLogs.value.filter { isToday(it.timestamp) }.sumOf { it.durationMinutes }
     }
 
+    fun getTodaySleepDurationTotal(): Double {
+        return sleepLogs.value.filter { isToday(it.timestamp) }.sumOf { it.durationHours }
+    }
+
+    fun getTodaySleepQualityAverage(): Double {
+        val todaySleeps = sleepLogs.value.filter { isToday(it.timestamp) }
+        if (todaySleeps.isEmpty()) return 0.0
+        return todaySleeps.map { it.quality }.average()
+    }
+
     fun getGoalValue(key: String, defaultValue: Double): Double {
         return goals.value.find { it.key == key }?.value ?: defaultValue
     }
@@ -309,6 +453,9 @@ class HealthViewModel(private val repository: HealthRepository) : ViewModel() {
             val fat = foodLogs.value.filter { isSameDay(it.timestamp, checkCal) }.sumOf { it.fat }
             val carbs = foodLogs.value.filter { isSameDay(it.timestamp, checkCal) }.sumOf { it.carbs }
             val exercise = exerciseLogs.value.filter { isSameDay(it.timestamp, checkCal) }.sumOf { it.durationMinutes }.toDouble()
+            val sleepHours = sleepLogs.value.filter { isSameDay(it.timestamp, checkCal) }.sumOf { it.durationHours }
+            val sleepQualityLogs = sleepLogs.value.filter { isSameDay(it.timestamp, checkCal) }
+            val sleepQualityAvg = if (sleepQualityLogs.isEmpty()) 0.0 else sleepQualityLogs.map { it.quality }.average()
 
             result.add(
                 DailySummaryPoint(
@@ -319,7 +466,9 @@ class HealthViewModel(private val repository: HealthRepository) : ViewModel() {
                     proteinG = protein,
                     fatG = fat,
                     carbsG = carbs,
-                    exerciseMin = exercise
+                    exerciseMin = exercise,
+                    sleepHours = sleepHours,
+                    sleepQuality = sleepQualityAvg
                 )
             )
         }
@@ -447,5 +596,7 @@ data class DailySummaryPoint(
     val proteinG: Double,
     val fatG: Double,
     val carbsG: Double,
-    val exerciseMin: Double
+    val exerciseMin: Double,
+    val sleepHours: Double = 0.0,
+    val sleepQuality: Double = 0.0
 )

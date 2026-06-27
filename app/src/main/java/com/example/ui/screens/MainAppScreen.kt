@@ -14,9 +14,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,6 +77,12 @@ fun MainAppScreen(viewModel: HealthViewModel) {
     val foodLogs by viewModel.foodLogs.collectAsStateWithLifecycle()
     val goals by viewModel.goals.collectAsStateWithLifecycle()
 
+    val googleUserSignedIn by viewModel.googleUserSignedIn.collectAsStateWithLifecycle()
+    val googleUserName by viewModel.googleUserName.collectAsStateWithLifecycle()
+    val weightUnit by viewModel.weightUnit.collectAsStateWithLifecycle()
+    val gramsUnit by viewModel.gramsUnit.collectAsStateWithLifecycle()
+    val volumeUnit by viewModel.volumeUnit.collectAsStateWithLifecycle()
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -107,6 +115,26 @@ fun MainAppScreen(viewModel: HealthViewModel) {
                 },
                 actions = {
                     var showThemeMenu by remember { mutableStateOf(false) }
+                    var showSettingsDialog by remember { mutableStateOf(false) }
+
+                    IconButton(
+                        onClick = { showSettingsDialog = true },
+                        modifier = Modifier.testTag("settings_btn")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = Teal400
+                        )
+                    }
+
+                    if (showSettingsDialog) {
+                        SettingsDialog(
+                            viewModel = viewModel,
+                            onDismiss = { showSettingsDialog = false }
+                        )
+                    }
+
                     Box {
                         IconButton(
                             onClick = { showThemeMenu = true },
@@ -253,6 +281,12 @@ fun getDrawableId(name: String?, context: android.content.Context): Int {
 fun DashboardTab(viewModel: HealthViewModel) {
     val context = LocalContext.current
 
+    val googleUserSignedIn by viewModel.googleUserSignedIn.collectAsStateWithLifecycle()
+    val googleUserName by viewModel.googleUserName.collectAsStateWithLifecycle()
+    val weightUnit by viewModel.weightUnit.collectAsStateWithLifecycle()
+    val gramsUnit by viewModel.gramsUnit.collectAsStateWithLifecycle()
+    val volumeUnit by viewModel.volumeUnit.collectAsStateWithLifecycle()
+
     var showAddExerciseDialog by remember { mutableStateOf(false) }
     var exerciseType by remember { mutableStateOf("GYM") } // "GYM", "RUN", "WALK"
     var gymName by remember { mutableStateOf("") }
@@ -260,6 +294,11 @@ fun DashboardTab(viewModel: HealthViewModel) {
     var gymReps by remember { mutableStateOf("10") }
     var durationMins by remember { mutableStateOf("30") }
     var distanceKm by remember { mutableStateOf("5.0") }
+
+    var showLogSleepDialog by remember { mutableStateOf(false) }
+    var sleepDurationStr by remember { mutableStateOf("8.0") }
+    var sleepQuality by remember { mutableStateOf(4) }
+    var sleepNotes by remember { mutableStateOf("") }
 
     val exerciseSpeechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -279,12 +318,14 @@ fun DashboardTab(viewModel: HealthViewModel) {
     val todayCaffeine = viewModel.getTodayCaffeineTotal()
     val todayCalories = viewModel.getTodayCaloriesTotal()
     val todayExercise = viewModel.getTodayExerciseMinutesTotal()
+    val todaySleep = viewModel.getTodaySleepDurationTotal()
 
     // Goals
     val goalWater = viewModel.getGoalValue("water_ml", 2000.0).toInt()
     val goalCaffeine = viewModel.getGoalValue("caffeine_mg", 400.0).toInt()
     val goalCalories = viewModel.getGoalValue("calories_kcal", 2000.0).toInt()
     val goalExercise = viewModel.getGoalValue("exercise_min", 30.0).toInt()
+    val goalSleep = viewModel.getGoalValue("sleep_hours", 8.0)
 
     // Macros
     val todayProtein = viewModel.getTodayProteinTotal()
@@ -316,7 +357,7 @@ fun DashboardTab(viewModel: HealthViewModel) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Good morning!",
+                            text = if (googleUserSignedIn) "Hello, $googleUserName!" else "Good morning!",
                             style = MaterialTheme.typography.titleMedium,
                             color = Slate400
                         )
@@ -344,7 +385,7 @@ fun DashboardTab(viewModel: HealthViewModel) {
             }
         }
 
-        // Circular progress rings Row
+        // Circular progress rings Row 1
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -374,8 +415,13 @@ fun DashboardTab(viewModel: HealthViewModel) {
                                 modifier = Modifier.size(24.dp)
                             )
                         }
+                        val waterText = if (volumeUnit == "L") {
+                            "${String.format(Locale.US, "%.2f", todayWater / 1000.0)} / ${String.format(Locale.US, "%.2f", goalWater / 1000.0)} L"
+                        } else {
+                            "$todayWater / $goalWater ml"
+                        }
                         Text(
-                            "$todayWater / $goalWater ml",
+                            waterText,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -415,7 +461,15 @@ fun DashboardTab(viewModel: HealthViewModel) {
                         )
                     }
                 }
+            }
+        }
 
+        // Circular progress rings Row 2
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 // Caffeine Ring
                 Card(
                     modifier = Modifier.weight(1f),
@@ -442,6 +496,41 @@ fun DashboardTab(viewModel: HealthViewModel) {
                         }
                         Text(
                             "$todayCaffeine / $goalCaffeine mg",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+
+                // Sleep Ring (Clickable!)
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showLogSleepDialog = true },
+                    colors = CardDefaults.cardColors(containerColor = Slate900),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text("Sleep", style = MaterialTheme.typography.labelMedium, color = Slate400)
+                        CircularProgressRing(
+                            progress = if (goalSleep > 0) (todaySleep / goalSleep).toFloat() else 0f,
+                            color = Emerald400,
+                            size = 70.dp
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.NightsStay,
+                                contentDescription = "Sleep",
+                                tint = Emerald400,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Text(
+                            "${String.format(Locale.US, "%.1f", todaySleep)} / ${String.format(Locale.US, "%.1f", goalSleep)} h",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
@@ -491,11 +580,11 @@ fun DashboardTab(viewModel: HealthViewModel) {
 
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             // Protein bar
-                            MacroProgressRow("Protein", todayProtein, goalProtein, Emerald500)
+                            MacroProgressRow("Protein", todayProtein, goalProtein, Emerald500, gramsUnit)
                             // Carbs bar
-                            MacroProgressRow("Carbs", todayCarbs, goalCarbs, Teal400)
+                            MacroProgressRow("Carbs", todayCarbs, goalCarbs, Teal400, gramsUnit)
                             // Fat bar
-                            MacroProgressRow("Fat", todayFat, goalFat, Amber400)
+                            MacroProgressRow("Fat", todayFat, goalFat, Amber400, gramsUnit)
                         }
                     }
                 }
@@ -566,8 +655,8 @@ fun DashboardTab(viewModel: HealthViewModel) {
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.LocalDrink, contentDescription = null, tint = Teal400)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text("+250ml", color = Slate50, fontSize = 11.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("+250ml Water", color = Slate50, fontSize = 11.sp)
                 }
 
                 Button(
@@ -580,22 +669,171 @@ fun DashboardTab(viewModel: HealthViewModel) {
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.LocalCafe, contentDescription = null, tint = Amber400)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text("+80mg", color = Slate50, fontSize = 11.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("+80mg Cafe", color = Slate50, fontSize = 11.sp)
                 }
+            }
+        }
 
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Button(
                     onClick = { showAddExerciseDialog = true },
-                    modifier = Modifier.weight(1.3f).testTag("log_workout_shortcut_btn"),
+                    modifier = Modifier.weight(1f).testTag("log_workout_shortcut_btn"),
                     colors = ButtonDefaults.buttonColors(containerColor = Slate900),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = Indigo400)
-                    Spacer(modifier = Modifier.width(2.dp))
-                    Text("Workout", color = Slate50, fontSize = 11.sp)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Log Workout", color = Slate50, fontSize = 11.sp)
+                }
+
+                Button(
+                    onClick = { showLogSleepDialog = true },
+                    modifier = Modifier.weight(1f).testTag("log_sleep_shortcut_btn"),
+                    colors = ButtonDefaults.buttonColors(containerColor = Slate900),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.NightsStay, contentDescription = null, tint = Emerald400)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Log Sleep", color = Slate50, fontSize = 11.sp)
                 }
             }
         }
+    }
+
+    if (showLogSleepDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogSleepDialog = false },
+            title = { Text("Log Daily Sleep", fontWeight = FontWeight.Bold, color = Slate50) },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Sleep Duration (hours):", color = Slate400, fontSize = 12.sp)
+                    OutlinedTextField(
+                        value = sleepDurationStr,
+                        onValueChange = { sleepDurationStr = it },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Emerald400,
+                            unfocusedBorderColor = Slate700,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        )
+                    )
+
+                    // Quick duration presets
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        listOf("6.0", "7.0", "8.0", "9.0").forEach { h ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (sleepDurationStr == h) Emerald500 else Slate800,
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { sleepDurationStr = h }
+                                    .padding(vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "$h h",
+                                    color = if (sleepDurationStr == h) Slate950 else Slate50,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text("Sleep Quality Rating:", color = Slate400, fontSize = 12.sp)
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    ) {
+                        (1..5).forEach { starIndex ->
+                            IconButton(
+                                onClick = { sleepQuality = starIndex },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (starIndex <= sleepQuality) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = "$starIndex Star",
+                                    tint = if (starIndex <= sleepQuality) Amber400 else Slate600,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    val qualityLabel = when (sleepQuality) {
+                        1 -> "Poor"
+                        2 -> "Fair"
+                        3 -> "Good"
+                        4 -> "Very Good"
+                        5 -> "Excellent"
+                        else -> "Good"
+                    }
+                    Text(
+                        text = "Quality: $qualityLabel",
+                        color = Emerald400,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    OutlinedTextField(
+                        value = sleepNotes,
+                        onValueChange = { sleepNotes = it },
+                        label = { Text("Sleep Notes (optional)") },
+                        placeholder = { Text("e.g. Slept deep, woke up refreshed", color = Slate400) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Emerald400,
+                            unfocusedBorderColor = Slate700,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val duration = sleepDurationStr.toDoubleOrNull()
+                        if (duration != null && duration > 0) {
+                            viewModel.logSleep(duration, sleepQuality, sleepNotes.takeIf { it.isNotEmpty() })
+                            Toast.makeText(context, "Sleep logged successfully!", Toast.LENGTH_SHORT).show()
+                            showLogSleepDialog = false
+                        } else {
+                            Toast.makeText(context, "Please enter a valid sleep duration", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Emerald500)
+                ) {
+                    Text("Save", color = Slate950, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogSleepDialog = false }) {
+                    Text("Cancel", color = Slate400)
+                }
+            },
+            containerColor = Slate900
+        )
     }
 
     if (showAddExerciseDialog) {
@@ -761,15 +999,22 @@ fun DashboardTab(viewModel: HealthViewModel) {
 }
 
 @Composable
-fun MacroProgressRow(name: String, current: Double, target: Double, color: Color) {
+fun MacroProgressRow(name: String, current: Double, target: Double, color: Color, gramsUnit: String = "g") {
     val progress = if (target > 0) (current / target).toFloat().coerceIn(0f, 1f) else 0f
+    
+    val currentDisplay = if (gramsUnit == "kg") current / 1000.0 else current
+    val targetDisplay = if (gramsUnit == "kg") target / 1000.0 else target
+    val unitStr = if (gramsUnit == "kg") "kg" else "g"
+    val formatStr = if (gramsUnit == "kg") "%.3f" else "%.0f"
+    val textVal = "${String.format(Locale.US, formatStr, currentDisplay)}$unitStr / ${String.format(Locale.US, formatStr, targetDisplay)}$unitStr"
+
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(name, fontSize = 11.sp, color = Slate50, fontWeight = FontWeight.Bold)
-            Text("${current.toInt()}g / ${target.toInt()}g", fontSize = 10.sp, color = Slate400)
+            Text(textVal, fontSize = 10.sp, color = Slate400)
         }
         Spacer(modifier = Modifier.height(2.dp))
         LinearProgressIndicator(
@@ -1722,19 +1967,20 @@ fun InsightsTab(viewModel: HealthViewModel) {
 
         // Chart Metric Selectors
         item {
-            Row(
+            LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                listOf(
+                items(listOf(
                     MetricSelectorOption("Fuel", "CALORIES", Amber400),
                     MetricSelectorOption("Hydration", "WATER", Teal400),
                     MetricSelectorOption("Energy", "CAFFEINE", Amber500),
-                    MetricSelectorOption("Exercise", "EXERCISE", Indigo400)
-                ).forEach { opt ->
+                    MetricSelectorOption("Exercise", "EXERCISE", Indigo400),
+                    MetricSelectorOption("Sleep", "SLEEP", Emerald400),
+                    MetricSelectorOption("Sleep Q", "SLEEP_QUALITY", Crimson400)
+                )) { opt ->
                     Box(
                         modifier = Modifier
-                            .weight(1f)
                             .background(
                                 if (selectedMetric == opt.key) opt.color.copy(alpha = 0.2f) else Slate900,
                                 RoundedCornerShape(10.dp)
@@ -1745,7 +1991,7 @@ fun InsightsTab(viewModel: HealthViewModel) {
                                 RoundedCornerShape(10.dp)
                             )
                             .clickable { selectedMetric = opt.key }
-                            .padding(vertical = 8.dp),
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -1765,6 +2011,8 @@ fun InsightsTab(viewModel: HealthViewModel) {
                 "CALORIES" -> Amber400
                 "WATER" -> Teal400
                 "CAFFEINE" -> Amber500
+                "SLEEP" -> Emerald400
+                "SLEEP_QUALITY" -> Crimson400
                 else -> Indigo400
             }
             WeeklyBarChart(
@@ -1854,6 +2102,7 @@ fun GoalsTab(viewModel: HealthViewModel) {
     val targetFat = viewModel.getGoalValue("fat_g", 70.0)
     val targetCarbs = viewModel.getGoalValue("carbs_g", 250.0)
     val targetExercise = viewModel.getGoalValue("exercise_min", 30.0)
+    val targetSleep = viewModel.getGoalValue("sleep_hours", 8.0)
 
     LazyColumn(
         modifier = Modifier
@@ -1916,6 +2165,14 @@ fun GoalsTab(viewModel: HealthViewModel) {
                         range = 10.0..180.0,
                         step = 5.0,
                         onValueChange = { viewModel.updateGoal("exercise_min", it) }
+                    )
+
+                    GoalAdjusterItem(
+                        title = "Sleep Target (hours)",
+                        value = targetSleep,
+                        range = 4.0..12.0,
+                        step = 0.5,
+                        onValueChange = { viewModel.updateGoal("sleep_hours", it) }
                     )
                 }
             }
@@ -2070,5 +2327,466 @@ fun ExplorerCompositeScreen(viewModel: HealthViewModel) {
                 2 -> GoalsTab(viewModel)
             }
         }
+    }
+}
+
+@Composable
+fun <T> SegmentedControl(
+    items: List<T>,
+    selectedItem: T,
+    onItemSelected: (T) -> Unit,
+    labelProvider: (T) -> String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Slate800)
+            .padding(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        items.forEach { item ->
+            val selected = item == selectedItem
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (selected) Teal400 else Color.Transparent)
+                    .clickable { onItemSelected(item) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = labelProvider(item),
+                    color = if (selected) Slate950 else Slate300,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun GoogleAccountSelectorDialog(
+    onDismiss: () -> Unit,
+    onSelect: (name: String, email: String, photo: String) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "G",
+                    color = Teal400,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Sign in with Google", fontWeight = FontWeight.Bold, color = Slate50, fontSize = 18.sp)
+                Text("Choose an account to continue to Health Tracker", color = Slate400, fontSize = 12.sp)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onSelect("Dheeraj Redhut", "dheeraj.redhut@gmail.com", "img_avatar_dheeraj")
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Slate800)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Teal500, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("D", color = Slate950, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        Column {
+                            Text("Dheeraj Redhut", color = Slate50, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("dheeraj.redhut@gmail.com", color = Slate400, fontSize = 12.sp)
+                        }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onSelect("AI Studio Builder", "developer@aistudio.com", "img_avatar_developer")
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Slate800)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Indigo400, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("A", color = Slate950, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        Column {
+                            Text("AI Studio Builder", color = Slate50, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("developer@aistudio.com", color = Slate400, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Slate400)
+            }
+        },
+        containerColor = Slate900
+    )
+}
+
+@Composable
+fun SettingsDialog(
+    viewModel: HealthViewModel,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+
+    val currentAge by viewModel.userAge.collectAsStateWithLifecycle()
+    val currentWeight by viewModel.userWeight.collectAsStateWithLifecycle()
+    val currentWaist by viewModel.userWaist.collectAsStateWithLifecycle()
+    val currentChest by viewModel.userChest.collectAsStateWithLifecycle()
+    val currentHips by viewModel.userHips.collectAsStateWithLifecycle()
+    val currentBiceps by viewModel.userBiceps.collectAsStateWithLifecycle()
+    val currentThighs by viewModel.userThighs.collectAsStateWithLifecycle()
+
+    val weightUnit by viewModel.weightUnit.collectAsStateWithLifecycle()
+    val gramsUnit by viewModel.gramsUnit.collectAsStateWithLifecycle()
+    val volumeUnit by viewModel.volumeUnit.collectAsStateWithLifecycle()
+
+    val googleUserSignedIn by viewModel.googleUserSignedIn.collectAsStateWithLifecycle()
+    val googleUserName by viewModel.googleUserName.collectAsStateWithLifecycle()
+    val googleUserEmail by viewModel.googleUserEmail.collectAsStateWithLifecycle()
+
+    var ageStr by remember(currentAge) { mutableStateOf(currentAge.toString()) }
+    var weightStr by remember(currentWeight) { mutableStateOf(String.format(Locale.US, "%.1f", currentWeight)) }
+    var waistStr by remember(currentWaist) { mutableStateOf(String.format(Locale.US, "%.1f", currentWaist)) }
+    var chestStr by remember(currentChest) { mutableStateOf(String.format(Locale.US, "%.1f", currentChest)) }
+    var hipsStr by remember(currentHips) { mutableStateOf(String.format(Locale.US, "%.1f", currentHips)) }
+    var bicepsStr by remember(currentBiceps) { mutableStateOf(String.format(Locale.US, "%.1f", currentBiceps)) }
+    var thighsStr by remember(currentThighs) { mutableStateOf(String.format(Locale.US, "%.1f", currentThighs)) }
+
+    var showGoogleAccountSelector by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Settings & Profile", fontWeight = FontWeight.Bold, color = Slate50)
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Slate400)
+                }
+            }
+        },
+        text = {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Google Authentication", style = MaterialTheme.typography.titleSmall, color = Teal400, fontWeight = FontWeight.Bold)
+                        if (googleUserSignedIn) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Slate800),
+                                border = BorderStroke(1.dp, Teal400.copy(alpha = 0.3f))
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .background(Teal500, CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(googleUserName.firstOrNull()?.toString() ?: "U", color = Slate950, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(googleUserName, color = Slate50, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text(googleUserEmail, color = Slate400, fontSize = 11.sp)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(
+                                        onClick = {
+                                            viewModel.signOutFromGoogle()
+                                            Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Crimson500),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.fillMaxWidth().height(36.dp).testTag("sign_out_google_btn")
+                                    ) {
+                                        Text("Sign Out", color = Slate50, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        } else {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showGoogleAccountSelector = true }
+                                    .testTag("sign_in_google_btn"),
+                                colors = CardDefaults.cardColors(containerColor = Color.White)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .padding(12.dp)
+                                        .fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Text(
+                                            "G",
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 18.sp,
+                                            color = Color(0xFF4285F4)
+                                        )
+                                        Text(
+                                            "Sign in with Google",
+                                            color = Color(0xFF1F1F1F),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Personal Vitals", style = MaterialTheme.typography.titleSmall, color = Teal400, fontWeight = FontWeight.Bold)
+                        
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = ageStr,
+                                onValueChange = { ageStr = it },
+                                label = { Text("Age") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400,
+                                    focusedTextColor = Slate50,
+                                    unfocusedTextColor = Slate50
+                                ),
+                                modifier = Modifier.weight(1f).testTag("settings_age_input")
+                            )
+                            
+                            OutlinedTextField(
+                                value = weightStr,
+                                onValueChange = { weightStr = it },
+                                label = { Text("Weight ($weightUnit)") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400,
+                                    focusedTextColor = Slate50,
+                                    unfocusedTextColor = Slate50
+                                ),
+                                modifier = Modifier.weight(1f).testTag("settings_weight_input")
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Body Measurements (cm)", style = MaterialTheme.typography.titleSmall, color = Teal400, fontWeight = FontWeight.Bold)
+                        
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = chestStr,
+                                onValueChange = { chestStr = it },
+                                label = { Text("Chest") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400,
+                                    focusedTextColor = Slate50,
+                                    unfocusedTextColor = Slate50
+                                ),
+                                modifier = Modifier.weight(1f).testTag("settings_chest_input")
+                            )
+                            OutlinedTextField(
+                                value = waistStr,
+                                onValueChange = { waistStr = it },
+                                label = { Text("Waist") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400,
+                                    focusedTextColor = Slate50,
+                                    unfocusedTextColor = Slate50
+                                ),
+                                modifier = Modifier.weight(1f).testTag("settings_waist_input")
+                            )
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = hipsStr,
+                                onValueChange = { hipsStr = it },
+                                label = { Text("Hips") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400,
+                                    focusedTextColor = Slate50,
+                                    unfocusedTextColor = Slate50
+                                ),
+                                modifier = Modifier.weight(1f).testTag("settings_hips_input")
+                            )
+                            OutlinedTextField(
+                                value = bicepsStr,
+                                onValueChange = { bicepsStr = it },
+                                label = { Text("Biceps") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400,
+                                    focusedTextColor = Slate50,
+                                    unfocusedTextColor = Slate50
+                                ),
+                                modifier = Modifier.weight(1f).testTag("settings_biceps_input")
+                            )
+                        }
+
+                        OutlinedTextField(
+                            value = thighsStr,
+                            onValueChange = { thighsStr = it },
+                            label = { Text("Thighs") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Teal400,
+                                focusedTextColor = Slate50,
+                                unfocusedTextColor = Slate50
+                            ),
+                            modifier = Modifier.fillMaxWidth().testTag("settings_thighs_input")
+                        )
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Unit Preferences", style = MaterialTheme.typography.titleSmall, color = Teal400, fontWeight = FontWeight.Bold)
+                        
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Column {
+                                Text("Weight Unit", color = Slate400, fontSize = 11.sp, modifier = Modifier.padding(bottom = 4.dp))
+                                SegmentedControl(
+                                    items = listOf("kg", "lb"),
+                                    selectedItem = weightUnit,
+                                    onItemSelected = { viewModel.updateWeightUnit(it) },
+                                    labelProvider = { it.uppercase() }
+                                )
+                            }
+
+                            Text(
+                                "Toggling converts displayed body weights between Kilograms and Pounds dynamically.",
+                                color = Slate500,
+                                fontSize = 10.sp
+                            )
+
+                            Column {
+                                Text("Macros Unit", color = Slate400, fontSize = 11.sp, modifier = Modifier.padding(bottom = 4.dp))
+                                SegmentedControl(
+                                    items = listOf("g", "kg"),
+                                    selectedItem = gramsUnit,
+                                    onItemSelected = { viewModel.updateGramsUnit(it) },
+                                    labelProvider = { if (it == "g") "Grams (g)" else "Kilograms (kg)" }
+                                )
+                            }
+
+                            Column {
+                                Text("Liquid Volume Unit", color = Slate400, fontSize = 11.sp, modifier = Modifier.padding(bottom = 4.dp))
+                                SegmentedControl(
+                                    items = listOf("ml", "L"),
+                                    selectedItem = volumeUnit,
+                                    onItemSelected = { viewModel.updateVolumeUnit(it) },
+                                    labelProvider = { if (it == "ml") "Milliliters (ml)" else "Liters (L)" }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val age = ageStr.toIntOrNull() ?: currentAge
+                    val weight = weightStr.toDoubleOrNull() ?: currentWeight
+                    val waist = waistStr.toDoubleOrNull() ?: currentWaist
+                    val chest = chestStr.toDoubleOrNull() ?: currentChest
+                    val hips = hipsStr.toDoubleOrNull() ?: currentHips
+                    val biceps = bicepsStr.toDoubleOrNull() ?: currentBiceps
+                    val thighs = thighsStr.toDoubleOrNull() ?: currentThighs
+
+                    viewModel.updatePersonalDetails(
+                        age = age,
+                        weight = weight,
+                        waist = waist,
+                        chest = chest,
+                        hips = hips,
+                        biceps = biceps,
+                        thighs = thighs
+                    )
+                    Toast.makeText(context, "Profile updated successfully!", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Teal400),
+                modifier = Modifier.testTag("save_settings_btn")
+            ) {
+                Text("Save Changes", color = Slate950)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Slate400)
+            }
+        },
+        containerColor = Slate900
+    )
+
+    if (showGoogleAccountSelector) {
+        GoogleAccountSelectorDialog(
+            onDismiss = { showGoogleAccountSelector = false },
+            onSelect = { name, email, photo ->
+                viewModel.signInWithGoogle(name, email, photo)
+                showGoogleAccountSelector = false
+                Toast.makeText(context, "Signed in as $name", Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 }

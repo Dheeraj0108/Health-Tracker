@@ -88,3 +88,12 @@ data class WeeklyPlan(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "sleep_logs")
+data class SleepLog(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val durationHours: Double,
+    val quality: Int, // 1 (Poor) to 5 (Excellent)
+    val notes: String? = null,
+    val timestamp: Long = System.currentTimeMillis()
+)
+

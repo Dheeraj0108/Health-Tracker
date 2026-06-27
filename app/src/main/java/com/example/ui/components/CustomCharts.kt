@@ -10,6 +10,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -79,7 +81,7 @@ fun CircularProgressRing(
 @Composable
 fun WeeklyBarChart(
     data: List<DailySummaryPoint>,
-    metricType: String, // "WATER", "CAFFEINE", "CALORIES", "EXERCISE"
+    metricType: String, // "WATER", "CAFFEINE", "CALORIES", "EXERCISE", "SLEEP", "SLEEP_QUALITY"
     modifier: Modifier = Modifier,
     barColor: Color = Teal400
 ) {
@@ -103,9 +105,25 @@ fun WeeklyBarChart(
             "CAFFEINE" -> point.caffeineMg
             "CALORIES" -> point.caloriesKcal
             "EXERCISE" -> point.exerciseMin
+            "SLEEP" -> point.sleepHours
+            "SLEEP_QUALITY" -> point.sleepQuality
             else -> 1.0
         }
     }.coerceAtLeast(1.0)
+
+    // Smooth bar-rise animation on view change/load
+    var animationTarget by remember { androidx.compose.runtime.mutableStateOf(0f) }
+    androidx.compose.runtime.LaunchedEffect(metricType, data) {
+        animationTarget = 0f
+        // Let it render 0f first, then animate to 1f
+        kotlinx.coroutines.delay(20)
+        animationTarget = 1f
+    }
+    val animProgress by animateFloatAsState(
+        targetValue = animationTarget,
+        animationSpec = tween(durationMillis = 800),
+        label = "chart_bar_rise"
+    )
 
     Column(
         modifier = modifier
@@ -118,6 +136,8 @@ fun WeeklyBarChart(
             "CAFFEINE" -> "Caffeine (mg)"
             "CALORIES" -> "Fuel (kcal)"
             "EXERCISE" -> "Exercise (mins)"
+            "SLEEP" -> "Sleep (hours)"
+            "SLEEP_QUALITY" -> "Sleep Quality (1-5)"
             else -> ""
         }
         Text(
@@ -144,13 +164,15 @@ fun WeeklyBarChart(
                     "CAFFEINE" -> point.caffeineMg
                     "CALORIES" -> point.caloriesKcal
                     "EXERCISE" -> point.exerciseMin
+                    "SLEEP" -> point.sleepHours
+                    "SLEEP_QUALITY" -> point.sleepQuality
                     else -> 0.0
                 }
 
                 // Scale bar height, leaving room for label
                 val labelHeight = 35f
                 val chartHeight = canvasHeight - labelHeight
-                val barHeight = ((value / maxVal) * chartHeight).toFloat().coerceAtLeast(10f)
+                val barHeight = ((value / maxVal) * chartHeight * animProgress).toFloat().coerceAtLeast(10f)
 
                 val x = spacing + index * (barWidth + spacing)
                 val y = chartHeight - barHeight

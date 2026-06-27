@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
     ).fallbackToDestructiveMigration().build()
 
     val repository = HealthRepository(database)
-    val viewModel = HealthViewModel(repository)
+    val viewModel = HealthViewModel(repository, applicationContext)
 
     enableEdgeToEdge()
     setContent {

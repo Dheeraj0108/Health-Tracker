@@ -9,6 +9,7 @@ import com.example.data.model.WaterLog
 import com.example.data.model.BodyLog
 import com.example.data.model.ExerciseRoutine
 import com.example.data.model.WeeklyPlan
+import com.example.data.model.SleepLog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 
@@ -22,6 +23,7 @@ class HealthRepository(private val db: AppDatabase) {
     val allBodyLogs: Flow<List<BodyLog>> = db.bodyDao().getAllBodyLogs()
     val allRoutines: Flow<List<ExerciseRoutine>> = db.routineDao().getAllRoutines()
     val allPlans: Flow<List<WeeklyPlan>> = db.planDao().getAllPlans()
+    val allSleepLogs: Flow<List<SleepLog>> = db.sleepDao().getAllSleepLogs()
 
     suspend fun insertWaterLog(log: WaterLog) = db.waterDao().insertWaterLog(log)
     suspend fun deleteWaterLog(id: Int) = db.waterDao().deleteWaterLogById(id)
@@ -49,6 +51,9 @@ class HealthRepository(private val db: AppDatabase) {
     suspend fun deletePlan(id: Int) = db.planDao().deletePlanById(id)
     suspend fun clearAllPlans() = db.planDao().clearAllPlans()
 
+    suspend fun insertSleepLog(log: SleepLog) = db.sleepDao().insertSleepLog(log)
+    suspend fun deleteSleepLog(id: Int) = db.sleepDao().deleteSleepLogById(id)
+
     suspend fun ensureDefaultGoals() {
         val defaults = mapOf(
             "water_ml" to 2000.0,
@@ -57,7 +62,8 @@ class HealthRepository(private val db: AppDatabase) {
             "protein_g" to 120.0,
             "fat_g" to 70.0,
             "carbs_g" to 250.0,
-            "exercise_min" to 30.0
+            "exercise_min" to 30.0,
+            "sleep_hours" to 8.0
         )
         for ((key, value) in defaults) {
             val existing = db.goalDao().getGoalByKey(key)

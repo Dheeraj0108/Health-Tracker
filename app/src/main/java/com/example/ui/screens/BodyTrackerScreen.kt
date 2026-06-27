@@ -46,10 +46,22 @@ import java.util.Locale
 fun BodyTrackerScreen(viewModel: HealthViewModel) {
     val context = LocalContext.current
     val bodyLogs by viewModel.bodyLogs.collectAsStateWithLifecycle()
+    val weightUnit by viewModel.weightUnit.collectAsStateWithLifecycle()
     var showAddLogDialog by remember { mutableStateOf(false) }
 
     // Date formatting
     val sdf = remember { SimpleDateFormat("MMMM dd, yyyy", Locale.getDefault()) }
+
+    // Helper function to format weight
+    val formatWeight = remember(weightUnit) {
+        { weightInKg: Double ->
+            if (weightUnit == "lb") {
+                "${String.format(Locale.US, "%.1f", weightInKg * 2.20462)} lb"
+            } else {
+                "${String.format(Locale.US, "%.1f", weightInKg)} kg"
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -91,7 +103,10 @@ fun BodyTrackerScreen(viewModel: HealthViewModel) {
         if (bodyLogs.isNotEmpty()) {
             val latestLog = bodyLogs.first()
             val earliestLog = bodyLogs.last()
-            val totalLoss = earliestLog.weightKg - latestLog.weightKg
+            
+            val latestWeight = if (weightUnit == "lb") latestLog.weightKg * 2.20462 else latestLog.weightKg
+            val earliestWeight = if (weightUnit == "lb") earliestLog.weightKg * 2.20462 else earliestLog.weightKg
+            val totalLoss = earliestWeight - latestWeight
 
             Card(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
@@ -104,16 +119,16 @@ fun BodyTrackerScreen(viewModel: HealthViewModel) {
                 ) {
                     Column {
                         Text("Current Weight", fontSize = 12.sp, color = Slate400)
-                        Text("${latestLog.weightKg} kg", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Teal400)
+                        Text(formatWeight(latestLog.weightKg), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Teal400)
                     }
 
                     Column(horizontalAlignment = Alignment.End) {
                         Text("Overall Change", fontSize = 12.sp, color = Slate400)
                         Text(
                             text = when {
-                                totalLoss > 0 -> "-${String.format("%.1f", totalLoss)} kg"
-                                totalLoss < 0 -> "+${String.format("%.1f", -totalLoss)} kg"
-                                else -> "0.0 kg"
+                                totalLoss > 0.05 -> "-${String.format(Locale.US, "%.1f", totalLoss)} $weightUnit"
+                                totalLoss < -0.05 -> "+${String.format(Locale.US, "%.1f", -totalLoss)} $weightUnit"
+                                else -> "0.0 $weightUnit"
                             },
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
@@ -176,7 +191,7 @@ fun BodyTrackerScreen(viewModel: HealthViewModel) {
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp).padding(bottom = 12.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                BodyMetricChip("Weight", "${log.weightKg} kg", Teal400, Modifier.weight(1f))
+                                BodyMetricChip("Weight", formatWeight(log.weightKg), Teal400, Modifier.weight(1f))
                                 if (log.waistCm != null) BodyMetricChip("Waist", "${log.waistCm} cm", Indigo400, Modifier.weight(1f))
                                 if (log.chestCm != null) BodyMetricChip("Chest", "${log.chestCm} cm", Amber400, Modifier.weight(1f))
                             }
@@ -285,7 +300,7 @@ fun BodyTrackerScreen(viewModel: HealthViewModel) {
                         OutlinedTextField(
                             value = weightStr,
                             onValueChange = { weightStr = it },
-                            label = { Text("Weight (kg) *") },
+                            label = { Text("Weight ($weightUnit) *") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Teal400,
@@ -379,8 +394,11 @@ fun BodyTrackerScreen(viewModel: HealthViewModel) {
             confirmButton = {
                 Button(
                     onClick = {
-                        val weight = weightStr.toDoubleOrNull()
+                        var weight = weightStr.toDoubleOrNull()
                         if (weight != null) {
+                            if (weightUnit == "lb") {
+                                weight /= 2.20462 // Convert back to kg for database storage
+                            }
                             var savedFilePath: String? = null
                             
                             // Save bitmap to file internally
