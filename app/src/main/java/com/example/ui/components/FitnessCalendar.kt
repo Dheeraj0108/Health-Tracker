@@ -90,7 +90,7 @@ fun FitnessCalendar(
                         text = currentMonthName,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = Slate50
                     )
                 }
 

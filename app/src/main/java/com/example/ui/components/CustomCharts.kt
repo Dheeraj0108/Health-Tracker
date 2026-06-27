@@ -23,9 +23,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.nativeCanvas
-import com.example.ui.theme.Slate800
-import com.example.ui.theme.Slate400
-import com.example.ui.theme.Teal400
+import com.example.ui.theme.*
 import com.example.ui.viewmodel.DailySummaryPoint
 
 @Composable
@@ -125,7 +123,7 @@ fun WeeklyBarChart(
         Text(
             text = "7-Day Progress: $title",
             style = MaterialTheme.typography.titleSmall,
-            color = Color.White,
+            color = Slate50,
             modifier = Modifier.padding(bottom = 12.dp)
         )
 

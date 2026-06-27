@@ -3,6 +3,9 @@ package com.example.ui.screens
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.widget.Toast
+import android.speech.RecognizerIntent
+import android.content.Intent
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -100,6 +103,43 @@ fun MainAppScreen(viewModel: HealthViewModel) {
                             color = Slate50,
                             fontSize = 20.sp
                         )
+                    }
+                },
+                actions = {
+                    var showThemeMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(
+                            onClick = { showThemeMenu = true },
+                            modifier = Modifier.testTag("theme_selector_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = "Change Theme",
+                                tint = Teal400
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showThemeMenu,
+                            onDismissRequest = { showThemeMenu = false },
+                            modifier = Modifier.background(Slate900)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Dark Gold Theme", color = Slate50, fontWeight = FontWeight.SemiBold) },
+                                leadingIcon = { Icon(Icons.Default.DarkMode, contentDescription = null, tint = Color(0xFFFACC15)) },
+                                onClick = {
+                                    AppThemeState.themeMode = "dark_yellow"
+                                    showThemeMenu = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Warm Nude Theme", color = Slate50, fontWeight = FontWeight.SemiBold) },
+                                leadingIcon = { Icon(Icons.Default.LightMode, contentDescription = null, tint = Color(0xFFB5835A)) },
+                                onClick = {
+                                    AppThemeState.themeMode = "light_nude"
+                                    showThemeMenu = false
+                                }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -212,6 +252,27 @@ fun getDrawableId(name: String?, context: android.content.Context): Int {
 @Composable
 fun DashboardTab(viewModel: HealthViewModel) {
     val context = LocalContext.current
+
+    var showAddExerciseDialog by remember { mutableStateOf(false) }
+    var exerciseType by remember { mutableStateOf("GYM") } // "GYM", "RUN", "WALK"
+    var gymName by remember { mutableStateOf("") }
+    var gymSets by remember { mutableStateOf("3") }
+    var gymReps by remember { mutableStateOf("10") }
+    var durationMins by remember { mutableStateOf("30") }
+    var distanceKm by remember { mutableStateOf("5.0") }
+
+    val exerciseSpeechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data
+            val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val spokenText = results?.getOrNull(0) ?: ""
+            if (spokenText.isNotEmpty()) {
+                gymName = spokenText
+            }
+        }
+    }
 
     // Calculated totals
     val todayWater = viewModel.getTodayWaterTotal()
@@ -493,7 +554,7 @@ fun DashboardTab(viewModel: HealthViewModel) {
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Button(
                     onClick = {
@@ -505,8 +566,8 @@ fun DashboardTab(viewModel: HealthViewModel) {
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.LocalDrink, contentDescription = null, tint = Teal400)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("+250ml", color = Slate50, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text("+250ml", color = Slate50, fontSize = 11.sp)
                 }
 
                 Button(
@@ -519,11 +580,183 @@ fun DashboardTab(viewModel: HealthViewModel) {
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(Icons.Default.LocalCafe, contentDescription = null, tint = Amber400)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("+80mg", color = Slate50, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text("+80mg", color = Slate50, fontSize = 11.sp)
+                }
+
+                Button(
+                    onClick = { showAddExerciseDialog = true },
+                    modifier = Modifier.weight(1.3f).testTag("log_workout_shortcut_btn"),
+                    colors = ButtonDefaults.buttonColors(containerColor = Slate900),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = Indigo400)
+                    Spacer(modifier = Modifier.width(2.dp))
+                    Text("Workout", color = Slate50, fontSize = 11.sp)
                 }
             }
         }
+    }
+
+    if (showAddExerciseDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddExerciseDialog = false },
+            title = { Text("Log Exercise Session", fontWeight = FontWeight.Bold, color = Slate50) },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Session Type:", color = Slate400, fontSize = 12.sp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        listOf("GYM", "RUN", "WALK").forEach { type ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .background(
+                                        if (exerciseType == type) Indigo500 else Slate800,
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable { exerciseType = type }
+                                    .padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    type,
+                                    color = if (exerciseType == type) Slate950 else Slate50,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    OutlinedTextField(
+                        value = gymName,
+                        onValueChange = { gymName = it },
+                        label = { Text(if (exerciseType == "GYM") "Workout Note / Name" else "Activity Note") },
+                        placeholder = { Text("e.g. Bench press / Running around park", color = Slate400) },
+                        trailingIcon = {
+                            IconButton(
+                                onClick = {
+                                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Describe your exercise name/note...")
+                                    }
+                                    try {
+                                        exerciseSpeechLauncher.launch(intent)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Speech recognition not supported", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.testTag("voice_input_exercise_btn")
+                            ) {
+                                Icon(Icons.Default.Mic, contentDescription = "Voice Input", tint = Indigo400)
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Slate50,
+                            unfocusedTextColor = Slate50,
+                            focusedBorderColor = Indigo400
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("gym_name_input")
+                    )
+
+                    if (exerciseType == "GYM") {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = gymSets,
+                                onValueChange = { gymSets = it },
+                                label = { Text("Sets") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Slate50,
+                                    unfocusedTextColor = Slate50,
+                                    focusedBorderColor = Indigo400
+                                ),
+                                modifier = Modifier.weight(1f).testTag("gym_sets_input")
+                            )
+                            OutlinedTextField(
+                                value = gymReps,
+                                onValueChange = { gymReps = it },
+                                label = { Text("Reps") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Slate50,
+                                    unfocusedTextColor = Slate50,
+                                    focusedBorderColor = Indigo400
+                                ),
+                                modifier = Modifier.weight(1f).testTag("gym_reps_input")
+                            )
+                        }
+                    }
+
+                    if (exerciseType == "RUN" || exerciseType == "WALK") {
+                        OutlinedTextField(
+                            value = distanceKm,
+                            onValueChange = { distanceKm = it },
+                            label = { Text("Distance (km)") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Slate50,
+                                unfocusedTextColor = Slate50,
+                                focusedBorderColor = Indigo400
+                            ),
+                            modifier = Modifier.fillMaxWidth().testTag("distance_input")
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = durationMins,
+                        onValueChange = { durationMins = it },
+                        label = { Text("Duration (minutes)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Slate50,
+                            unfocusedTextColor = Slate50,
+                            focusedBorderColor = Indigo400
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("duration_input")
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val duration = durationMins.toIntOrNull() ?: 30
+                        val dist = distanceKm.toDoubleOrNull() ?: 0.0
+                        val sets = gymSets.toIntOrNull() ?: 3
+                        val reps = gymReps.toIntOrNull() ?: 10
+
+                        viewModel.logExercise(
+                            type = exerciseType,
+                            exerciseName = gymName.ifEmpty { if (exerciseType == "GYM") "Workout" else exerciseType },
+                            sets = if (exerciseType == "GYM") sets else null,
+                            reps = if (exerciseType == "GYM") reps else null,
+                            durationMinutes = duration,
+                            distanceKm = if (exerciseType != "GYM") dist else null
+                        )
+                        showAddExerciseDialog = false
+                        gymName = "" // reset
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Indigo400)
+                ) {
+                    Text("Add", color = Slate950)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddExerciseDialog = false }) {
+                    Text("Cancel", color = Slate400)
+                }
+            },
+            containerColor = Slate900
+        )
     }
 }
 
@@ -1043,6 +1276,19 @@ fun NutriSnapTab(viewModel: HealthViewModel) {
     var selectedImagePathOrRes by remember { mutableStateOf<String?>(null) }
     var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
+    val foodSpeechLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data
+            val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+            val spokenText = results?.getOrNull(0) ?: ""
+            if (spokenText.isNotEmpty()) {
+                foodDescriptionInput = spokenText
+            }
+        }
+    }
+
     // Preloaded high-quality generated mock food choice list
     val preloadedFoods = listOf(
         MockFoodItem("Avocado Sourdough Toast", "img_avocado_toast_1782576630562", "Slice of sourdough topped with mashed avocado, tomatoes, radish, and poached egg"),
@@ -1355,7 +1601,7 @@ fun NutriSnapTab(viewModel: HealthViewModel) {
                         Text(
                             "Step 2: Describe your food plate",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = Slate50,
                             fontSize = 14.sp
                         )
 
@@ -1363,10 +1609,29 @@ fun NutriSnapTab(viewModel: HealthViewModel) {
                             value = foodDescriptionInput,
                             onValueChange = { foodDescriptionInput = it },
                             placeholder = { Text("e.g., Avocado Sourdough toast with poached egg", color = Slate400) },
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = {
+                                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Describe what you ate...")
+                                        }
+                                        try {
+                                            foodSpeechLauncher.launch(intent)
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "Voice input not supported", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.testTag("voice_input_food_btn")
+                                ) {
+                                    Icon(Icons.Default.Mic, contentDescription = "Voice input", tint = Teal400)
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth().testTag("food_desc_input"),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
+                                focusedTextColor = Slate50,
+                                unfocusedTextColor = Slate50,
                                 focusedBorderColor = Teal400,
                                 focusedLabelColor = Teal400
                             )
