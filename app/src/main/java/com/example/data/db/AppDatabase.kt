@@ -16,6 +16,8 @@ import com.example.data.model.ExerciseRoutine
 import com.example.data.model.WeeklyPlan
 import com.example.data.model.SleepLog
 import com.example.data.model.WorkoutSession
+import com.example.data.model.PersonalRecord
+import com.example.data.model.CustomExercise
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -145,6 +147,33 @@ interface SleepDao {
     suspend fun deleteSleepLogById(id: Int)
 }
 
+@Dao
+interface PersonalRecordDao {
+    @Query("SELECT * FROM personal_records ORDER BY timestamp DESC")
+    fun getAllPersonalRecords(): Flow<List<PersonalRecord>>
+
+    @Query("SELECT * FROM personal_records WHERE exerciseName = :exerciseName AND metricType = :metricType ORDER BY value DESC LIMIT 1")
+    suspend fun getBestRecord(exerciseName: String, metricType: String): PersonalRecord?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPersonalRecord(record: PersonalRecord)
+
+    @Query("DELETE FROM personal_records WHERE id = :id")
+    suspend fun deletePersonalRecordById(id: Int)
+}
+
+@Dao
+interface CustomExerciseDao {
+    @Query("SELECT * FROM custom_exercises ORDER BY timestamp DESC")
+    fun getAllCustomExercises(): Flow<List<CustomExercise>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCustomExercise(exercise: CustomExercise)
+
+    @Query("DELETE FROM custom_exercises WHERE id = :id")
+    suspend fun deleteCustomExerciseById(id: Int)
+}
+
 @Database(
     entities = [
         WaterLog::class,
@@ -156,9 +185,11 @@ interface SleepDao {
         ExerciseRoutine::class,
         WeeklyPlan::class,
         SleepLog::class,
-        WorkoutSession::class
+        WorkoutSession::class,
+        PersonalRecord::class,
+        CustomExercise::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -172,4 +203,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun planDao(): PlanDao
     abstract fun sleepDao(): SleepDao
     abstract fun workoutSessionDao(): WorkoutSessionDao
+    abstract fun personalRecordDao(): PersonalRecordDao
+    abstract fun customExerciseDao(): CustomExerciseDao
 }

@@ -11,6 +11,8 @@ import com.example.data.model.ExerciseRoutine
 import com.example.data.model.WeeklyPlan
 import com.example.data.model.SleepLog
 import com.example.data.model.WorkoutSession
+import com.example.data.model.PersonalRecord
+import com.example.data.model.CustomExercise
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 
@@ -26,6 +28,8 @@ class HealthRepository(private val db: AppDatabase) {
     val allPlans: Flow<List<WeeklyPlan>> = db.planDao().getAllPlans()
     val allSleepLogs: Flow<List<SleepLog>> = db.sleepDao().getAllSleepLogs()
     val allWorkoutSessions: Flow<List<WorkoutSession>> = db.workoutSessionDao().getAllWorkoutSessions()
+    val allPersonalRecords: Flow<List<PersonalRecord>> = db.personalRecordDao().getAllPersonalRecords()
+    val allCustomExercises: Flow<List<CustomExercise>> = db.customExerciseDao().getAllCustomExercises()
 
     suspend fun insertWaterLog(log: WaterLog) = db.waterDao().insertWaterLog(log)
     suspend fun deleteWaterLog(id: Int) = db.waterDao().deleteWaterLogById(id)
@@ -58,6 +62,21 @@ class HealthRepository(private val db: AppDatabase) {
 
     suspend fun insertWorkoutSession(session: WorkoutSession) = db.workoutSessionDao().insertWorkoutSession(session)
     suspend fun deleteWorkoutSession(id: Int) = db.workoutSessionDao().deleteWorkoutSessionById(id)
+
+    suspend fun getBestPersonalRecord(exerciseName: String, metricType: String): PersonalRecord? = 
+        db.personalRecordDao().getBestRecord(exerciseName, metricType)
+
+    suspend fun insertPersonalRecord(record: PersonalRecord) = 
+        db.personalRecordDao().insertPersonalRecord(record)
+
+    suspend fun deletePersonalRecord(id: Int) = 
+        db.personalRecordDao().deletePersonalRecordById(id)
+
+    suspend fun insertCustomExercise(exercise: CustomExercise) = 
+        db.customExerciseDao().insertCustomExercise(exercise)
+
+    suspend fun deleteCustomExercise(id: Int) = 
+        db.customExerciseDao().deleteCustomExerciseById(id)
 
     suspend fun ensureDefaultGoals() {
         val defaults = mapOf(

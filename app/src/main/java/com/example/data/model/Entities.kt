@@ -108,3 +108,24 @@ data class WorkoutSession(
     val timestamp: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "personal_records")
+data class PersonalRecord(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val exerciseName: String,
+    val metricType: String, // "weight" or "reps"
+    val value: Double,
+    val reps: Int = 0,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "custom_exercises")
+data class CustomExercise(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val bodyPart: String,
+    val equipment: String,
+    val level: String,
+    val specificInstruction: String? = null,
+    val timestamp: Long = System.currentTimeMillis()
+)
+

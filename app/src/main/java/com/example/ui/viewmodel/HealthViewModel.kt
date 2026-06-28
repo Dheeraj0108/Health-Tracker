@@ -15,6 +15,8 @@ import com.example.data.model.ExerciseRoutine
 import com.example.data.model.WeeklyPlan
 import com.example.data.model.SleepLog
 import com.example.data.model.WorkoutSession
+import com.example.data.model.PersonalRecord
+import com.example.data.model.CustomExercise
 import com.example.data.repository.HealthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -223,6 +225,12 @@ class HealthViewModel(private val repository: HealthRepository, private val cont
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val workoutSessions: StateFlow<List<WorkoutSession>> = repository.allWorkoutSessions
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val personalRecords: StateFlow<List<PersonalRecord>> = repository.allPersonalRecords
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val customExercises: StateFlow<List<CustomExercise>> = repository.allCustomExercises
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // UI Status states
@@ -675,6 +683,99 @@ class HealthViewModel(private val repository: HealthRepository, private val cont
     fun deleteWorkoutSession(id: Int) {
         viewModelScope.launch {
             repository.deleteWorkoutSession(id)
+        }
+    }
+
+    fun addCustomExercise(
+        name: String,
+        bodyPart: String,
+        equipment: String,
+        level: String,
+        specificInstruction: String? = null,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (name.isBlank()) {
+            onError("Exercise name is mandatory!")
+            return
+        }
+        if (bodyPart.isBlank()) {
+            onError("Body part is mandatory!")
+            return
+        }
+        if (equipment.isBlank()) {
+            onError("Equipment is mandatory!")
+            return
+        }
+        if (level.isBlank()) {
+            onError("Level is mandatory!")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                repository.insertCustomExercise(
+                    CustomExercise(
+                        name = name.trim(),
+                        bodyPart = bodyPart.trim(),
+                        equipment = equipment.trim(),
+                        level = level.trim(),
+                        specificInstruction = specificInstruction?.trim()?.ifEmpty { null }
+                    )
+                )
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.message ?: "Failed to save custom exercise")
+            }
+        }
+    }
+
+    fun deleteCustomExercise(id: Int) {
+        viewModelScope.launch {
+            repository.deleteCustomExercise(id)
+        }
+    }
+
+    fun checkAndLogPersonalRecord(
+        exerciseName: String,
+        weight: Double,
+        reps: Int,
+        onNewRecord: (PersonalRecord) -> Unit
+    ) {
+        viewModelScope.launch {
+            var newPRTriggered = false
+            
+            // Check weight record
+            val bestWeightRecord = repository.getBestPersonalRecord(exerciseName, "weight")
+            if (weight > 0.0 && (bestWeightRecord == null || weight > bestWeightRecord.value)) {
+                val record = PersonalRecord(
+                    exerciseName = exerciseName,
+                    metricType = "weight",
+                    value = weight,
+                    reps = reps
+                )
+                repository.insertPersonalRecord(record)
+                onNewRecord(record)
+                newPRTriggered = true
+            }
+            
+            // Check reps record (only if weight is not zero/empty or same as before but more reps)
+            val bestRepsRecord = repository.getBestPersonalRecord(exerciseName, "reps")
+            if (!newPRTriggered && reps > 0 && (bestRepsRecord == null || reps > bestRepsRecord.value.toInt())) {
+                val record = PersonalRecord(
+                    exerciseName = exerciseName,
+                    metricType = "reps",
+                    value = reps.toDouble(),
+                    reps = reps
+                )
+                repository.insertPersonalRecord(record)
+                onNewRecord(record)
+            }
+        }
+    }
+
+    fun deletePersonalRecord(id: Int) {
+        viewModelScope.launch {
+            repository.deletePersonalRecord(id)
         }
     }
 }

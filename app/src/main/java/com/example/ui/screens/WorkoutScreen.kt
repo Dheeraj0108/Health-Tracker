@@ -41,6 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.WorkoutSession
+import com.example.data.model.PersonalRecord
+import com.example.ui.components.ConfettiOverlay
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.HealthViewModel
 import kotlinx.coroutines.delay
@@ -86,6 +88,10 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
     var showCancelConfirmation by remember { mutableStateOf(false) }
     var showRestTimerSettings by remember { mutableStateOf(false) }
 
+    // Personal Records States
+    var activePrRecord by remember { mutableStateOf<PersonalRecord?>(null) }
+    var showPrConfetti by remember { mutableStateOf(false) }
+
     // Launch active timer
     LaunchedEffect(isStopwatchRunning) {
         if (isStopwatchRunning) {
@@ -109,6 +115,94 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
             }
         }
     }
+
+    // PR achieved banner/dialog
+    activePrRecord?.let { pr ->
+        AlertDialog(
+            onDismissRequest = { activePrRecord = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Star Trophy",
+                        tint = Amber400,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "NEW RECORD! 🏆",
+                        fontWeight = FontWeight.Bold,
+                        color = Amber400,
+                        fontSize = 18.sp
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Congratulations! You just smashed a new personal record for:",
+                        color = Slate300,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = pr.exerciseName,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = Color.White,
+                        fontSize = 20.sp
+                    )
+                    
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    Surface(
+                        color = Slate800,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = if (pr.metricType == "weight") "Max Weight Lifted" else "Max Reps Achieved",
+                                color = Slate400,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = if (pr.metricType == "weight") "${pr.value} kg" else "${pr.value.toInt()} Reps",
+                                color = Teal400,
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            if (pr.metricType == "weight" && pr.reps > 0) {
+                                Text(
+                                    text = "for ${pr.reps} reps",
+                                    color = Slate400,
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { activePrRecord = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = Amber400)
+                ) {
+                    Text("Awesome!", color = Slate950, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = Slate900,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    ConfettiOverlay(
+        isTriggered = showPrConfetti,
+        onFinished = { showPrConfetti = false }
+    )
 
     if (activeSessionName != null) {
         // --- ACTIVE WORKOUT SESSION SHEET VIEW ---
@@ -244,9 +338,24 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                             onSetCheckedChange = { setIdx, isChecked ->
                                 val set = exercise.sets[setIdx]
                                 set.isCompleted = isChecked
-                                if (isChecked && restTimeRemaining == null) {
-                                    // Start Rest Timer
-                                    restTimeRemaining = restTimeTotal
+                                if (isChecked) {
+                                    val weightVal = set.weight.toDoubleOrNull() ?: 0.0
+                                    val repsVal = set.reps.toIntOrNull() ?: 0
+                                    if (weightVal > 0.0 || repsVal > 0) {
+                                        viewModel.checkAndLogPersonalRecord(
+                                            exerciseName = exercise.name,
+                                            weight = weightVal,
+                                            reps = repsVal,
+                                            onNewRecord = { pr ->
+                                                activePrRecord = pr
+                                                showPrConfetti = true
+                                            }
+                                        )
+                                    }
+                                    if (restTimeRemaining == null) {
+                                        // Start Rest Timer
+                                        restTimeRemaining = restTimeTotal
+                                    }
                                 }
                             },
                             onSetTypeChange = { setIdx, newType ->
@@ -1289,6 +1398,126 @@ fun WorkoutProgressCharts(viewModel: HealthViewModel) {
                                 else -> x
                             }
                             drawText(dateLabels[idx], labelX, height - 4.dp.toPx(), lblPaint)
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- PERSONAL RECORDS LIST CARD ---
+        val personalRecords by viewModel.personalRecords.collectAsStateWithLifecycle()
+        
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Slate900)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "🏆 Personal Records (PRs)",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        Text(
+                            text = "Your all-time high achievements",
+                            color = Slate400,
+                            fontSize = 11.sp
+                        )
+                    }
+                    if (personalRecords.isNotEmpty()) {
+                        Text(
+                            text = "${personalRecords.size} Records",
+                            color = Teal400,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                if (personalRecords.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No PRs logged yet. Check off workout sets to achieve a record!",
+                            color = Slate500,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                } else {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val grouped = personalRecords.groupBy { it.exerciseName }
+                        grouped.forEach { (exerciseName, records) ->
+                            val bestWeight = records.filter { it.metricType == "weight" }.maxByOrNull { it.value }
+                            val bestReps = records.filter { it.metricType == "reps" }.maxByOrNull { it.value }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Slate800.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                    .padding(10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = exerciseName,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        if (bestWeight != null) {
+                                            Text(
+                                                text = "Weight: ${bestWeight.value} kg (${bestWeight.reps} reps)",
+                                                color = Teal400,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                        if (bestReps != null) {
+                                            Text(
+                                                text = "Reps: ${bestReps.value.toInt()} reps",
+                                                color = Amber400,
+                                                fontSize = 11.sp
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    records.forEach { r ->
+                                        IconButton(
+                                            onClick = { viewModel.deletePersonalRecord(r.id) },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Delete Record",
+                                                tint = Crimson500.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }

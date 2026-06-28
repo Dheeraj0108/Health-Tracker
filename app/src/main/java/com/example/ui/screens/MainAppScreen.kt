@@ -2962,7 +2962,7 @@ fun ExplorerCompositeScreen(viewModel: HealthViewModel) {
         
         Box(modifier = Modifier.fillMaxSize()) {
             when (selectedTopTab) {
-                0 -> MuscleWikiScreen()
+                0 -> MuscleWikiScreen(viewModel)
                 1 -> InsightsTab(viewModel)
                 2 -> GoalsTab(viewModel)
             }
