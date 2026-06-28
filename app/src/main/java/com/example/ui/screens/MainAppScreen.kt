@@ -1439,6 +1439,11 @@ if (showFloatingShortcutBubble) {
     }
 
     if (showEditTargetsDialog) {
+        var tempWater by remember { mutableStateOf(goalWater.toDouble()) }
+        var tempCaffeine by remember { mutableStateOf(goalCaffeine.toDouble()) }
+        var tempExercise by remember { mutableStateOf(goalExercise.toDouble()) }
+        var tempSleep by remember { mutableStateOf(goalSleep) }
+
         AlertDialog(
             onDismissRequest = { showEditTargetsDialog = false },
             title = {
@@ -1456,40 +1461,47 @@ if (showFloatingShortcutBubble) {
                 ) {
                     GoalAdjusterItem(
                         title = "Hydration Goal (ml)",
-                        value = goalWater.toDouble(),
+                        value = tempWater,
                         range = 500.0..5000.0,
                         step = 100.0,
-                        onValueChange = { viewModel.updateGoal("water_ml", it) }
+                        onValueChange = { tempWater = it }
                     )
 
                     GoalAdjusterItem(
                         title = "Caffeine Limit (mg)",
-                        value = goalCaffeine.toDouble(),
+                        value = tempCaffeine,
                         range = 0.0..1000.0,
                         step = 20.0,
-                        onValueChange = { viewModel.updateGoal("caffeine_mg", it) }
+                        onValueChange = { tempCaffeine = it }
                     )
 
                     GoalAdjusterItem(
                         title = "Exercise Target (mins)",
-                        value = goalExercise.toDouble(),
+                        value = tempExercise,
                         range = 10.0..180.0,
                         step = 5.0,
-                        onValueChange = { viewModel.updateGoal("exercise_min", it) }
+                        onValueChange = { tempExercise = it }
                     )
 
                     GoalAdjusterItem(
                         title = "Sleep Target (hours)",
-                        value = goalSleep,
+                        value = tempSleep,
                         range = 4.0..12.0,
                         step = 0.5,
-                        onValueChange = { viewModel.updateGoal("sleep_hours", it) }
+                        onValueChange = { tempSleep = it }
                     )
                 }
             },
             confirmButton = {
                 Button(
-                    onClick = { showEditTargetsDialog = false },
+                    onClick = {
+                        viewModel.updateGoal("water_ml", tempWater)
+                        viewModel.updateGoal("caffeine_mg", tempCaffeine)
+                        viewModel.updateGoal("exercise_min", tempExercise)
+                        viewModel.updateGoal("sleep_hours", tempSleep)
+                        android.widget.Toast.makeText(context, "Targets updated successfully!", android.widget.Toast.LENGTH_SHORT).show()
+                        showEditTargetsDialog = false
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = Teal500)
                 ) {
                     Text("Save & Close", color = Slate950, fontWeight = FontWeight.Bold)
@@ -2597,15 +2609,16 @@ data class MetricSelectorOption(val label: String, val key: String, val color: C
 @Composable
 fun GoalsTab(viewModel: HealthViewModel) {
     val goals by viewModel.goals.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
-    val targetWater = viewModel.getGoalValue("water_ml", 2000.0)
-    val targetCaffeine = viewModel.getGoalValue("caffeine_mg", 400.0)
-    val targetCalories = viewModel.getGoalValue("calories_kcal", 2000.0)
-    val targetProtein = viewModel.getGoalValue("protein_g", 120.0)
-    val targetFat = viewModel.getGoalValue("fat_g", 70.0)
-    val targetCarbs = viewModel.getGoalValue("carbs_g", 250.0)
-    val targetExercise = viewModel.getGoalValue("exercise_min", 30.0)
-    val targetSleep = viewModel.getGoalValue("sleep_hours", 8.0)
+    var tempWater by remember(goals) { mutableStateOf(viewModel.getGoalValue("water_ml", 2000.0)) }
+    var tempCaffeine by remember(goals) { mutableStateOf(viewModel.getGoalValue("caffeine_mg", 400.0)) }
+    var tempCalories by remember(goals) { mutableStateOf(viewModel.getGoalValue("calories_kcal", 2000.0)) }
+    var tempProtein by remember(goals) { mutableStateOf(viewModel.getGoalValue("protein_g", 120.0)) }
+    var tempFat by remember(goals) { mutableStateOf(viewModel.getGoalValue("fat_g", 70.0)) }
+    var tempCarbs by remember(goals) { mutableStateOf(viewModel.getGoalValue("carbs_g", 250.0)) }
+    var tempExercise by remember(goals) { mutableStateOf(viewModel.getGoalValue("exercise_min", 30.0)) }
+    var tempSleep by remember(goals) { mutableStateOf(viewModel.getGoalValue("sleep_hours", 8.0)) }
 
     LazyColumn(
         modifier = Modifier
@@ -2648,34 +2661,34 @@ fun GoalsTab(viewModel: HealthViewModel) {
 
                     GoalAdjusterItem(
                         title = "Hydration Goal (ml)",
-                        value = targetWater,
+                        value = tempWater,
                         range = 500.0..5000.0,
                         step = 100.0,
-                        onValueChange = { viewModel.updateGoal("water_ml", it) }
+                        onValueChange = { tempWater = it }
                     )
 
                     GoalAdjusterItem(
                         title = "Caffeine Limit (mg)",
-                        value = targetCaffeine,
+                        value = tempCaffeine,
                         range = 0.0..1000.0,
                         step = 20.0,
-                        onValueChange = { viewModel.updateGoal("caffeine_mg", it) }
+                        onValueChange = { tempCaffeine = it }
                     )
 
                     GoalAdjusterItem(
                         title = "Exercise Target (mins)",
-                        value = targetExercise,
+                        value = tempExercise,
                         range = 10.0..180.0,
                         step = 5.0,
-                        onValueChange = { viewModel.updateGoal("exercise_min", it) }
+                        onValueChange = { tempExercise = it }
                     )
 
                     GoalAdjusterItem(
                         title = "Sleep Target (hours)",
-                        value = targetSleep,
+                        value = tempSleep,
                         range = 4.0..12.0,
                         step = 0.5,
-                        onValueChange = { viewModel.updateGoal("sleep_hours", it) }
+                        onValueChange = { tempSleep = it }
                     )
                 }
             }
@@ -2700,36 +2713,57 @@ fun GoalsTab(viewModel: HealthViewModel) {
 
                     GoalAdjusterItem(
                         title = "Calories (kcal)",
-                        value = targetCalories,
+                        value = tempCalories,
                         range = 1000.0..5000.0,
                         step = 50.0,
-                        onValueChange = { viewModel.updateGoal("calories_kcal", it) }
+                        onValueChange = { tempCalories = it }
                     )
 
                     GoalAdjusterItem(
                         title = "Protein Goal (g)",
-                        value = targetProtein,
+                        value = tempProtein,
                         range = 30.0..300.0,
                         step = 5.0,
-                        onValueChange = { viewModel.updateGoal("protein_g", it) }
+                        onValueChange = { tempProtein = it }
                     )
 
                     GoalAdjusterItem(
                         title = "Carbs Goal (g)",
-                        value = targetCarbs,
+                        value = tempCarbs,
                         range = 50.0..600.0,
                         step = 10.0,
-                        onValueChange = { viewModel.updateGoal("carbs_g", it) }
+                        onValueChange = { tempCarbs = it }
                     )
 
                     GoalAdjusterItem(
                         title = "Fat Goal (g)",
-                        value = targetFat,
+                        value = tempFat,
                         range = 20.0..200.0,
                         step = 5.0,
-                        onValueChange = { viewModel.updateGoal("fat_g", it) }
+                        onValueChange = { tempFat = it }
                     )
                 }
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    viewModel.updateGoal("water_ml", tempWater)
+                    viewModel.updateGoal("caffeine_mg", tempCaffeine)
+                    viewModel.updateGoal("calories_kcal", tempCalories)
+                    viewModel.updateGoal("protein_g", tempProtein)
+                    viewModel.updateGoal("fat_g", tempFat)
+                    viewModel.updateGoal("carbs_g", tempCarbs)
+                    viewModel.updateGoal("exercise_min", tempExercise)
+                    viewModel.updateGoal("sleep_hours", tempSleep)
+                    android.widget.Toast.makeText(context, "All goals saved successfully!", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Teal400),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+            ) {
+                Text("Save Target Changes", color = Slate950, fontWeight = FontWeight.Bold)
             }
         }
     }
