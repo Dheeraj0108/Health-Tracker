@@ -66,6 +66,7 @@ data class BodyLog(
     val bicepsCm: Double?,
     val thighsCm: Double?,
     val imagePath: String?, // File path or content URI for body transformation photo
+    val notes: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
 
@@ -93,6 +94,16 @@ data class SleepLog(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val durationHours: Double,
     val quality: Int, // 1 (Poor) to 5 (Excellent)
+    val notes: String? = null,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "workout_sessions")
+data class WorkoutSession(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val name: String,
+    val durationMinutes: Int,
+    val exercisesJson: String, // Moshi serialized JSON of exercises and sets
     val notes: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )

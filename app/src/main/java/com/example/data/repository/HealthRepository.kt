@@ -10,6 +10,7 @@ import com.example.data.model.BodyLog
 import com.example.data.model.ExerciseRoutine
 import com.example.data.model.WeeklyPlan
 import com.example.data.model.SleepLog
+import com.example.data.model.WorkoutSession
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 
@@ -24,6 +25,7 @@ class HealthRepository(private val db: AppDatabase) {
     val allRoutines: Flow<List<ExerciseRoutine>> = db.routineDao().getAllRoutines()
     val allPlans: Flow<List<WeeklyPlan>> = db.planDao().getAllPlans()
     val allSleepLogs: Flow<List<SleepLog>> = db.sleepDao().getAllSleepLogs()
+    val allWorkoutSessions: Flow<List<WorkoutSession>> = db.workoutSessionDao().getAllWorkoutSessions()
 
     suspend fun insertWaterLog(log: WaterLog) = db.waterDao().insertWaterLog(log)
     suspend fun deleteWaterLog(id: Int) = db.waterDao().deleteWaterLogById(id)
@@ -53,6 +55,9 @@ class HealthRepository(private val db: AppDatabase) {
 
     suspend fun insertSleepLog(log: SleepLog) = db.sleepDao().insertSleepLog(log)
     suspend fun deleteSleepLog(id: Int) = db.sleepDao().deleteSleepLogById(id)
+
+    suspend fun insertWorkoutSession(session: WorkoutSession) = db.workoutSessionDao().insertWorkoutSession(session)
+    suspend fun deleteWorkoutSession(id: Int) = db.workoutSessionDao().deleteWorkoutSessionById(id)
 
     suspend fun ensureDefaultGoals() {
         val defaults = mapOf(

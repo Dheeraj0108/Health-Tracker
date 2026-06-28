@@ -36,7 +36,7 @@ import com.example.ui.viewmodel.HealthViewModel
 @Composable
 fun FitnessPlannerScreen(viewModel: HealthViewModel) {
     val context = LocalContext.current
-    var activePlannerTab by remember { mutableStateOf(0) } // 0 = 12-Week Plan, 1 = Routine Builder, 2 = Activity Logs
+    var activePlannerTab by remember { mutableStateOf(0) } // 0 = Workout, 1 = 12-Week Plan, 2 = Routine Builder, 3 = Logs & Charts
     
     val routines by viewModel.routines.collectAsStateWithLifecycle()
     val plans by viewModel.plans.collectAsStateWithLifecycle()
@@ -61,21 +61,28 @@ fun FitnessPlannerScreen(viewModel: HealthViewModel) {
             Tab(
                 selected = activePlannerTab == 0,
                 onClick = { activePlannerTab = 0 },
-                text = { Text("12-Week Plan", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                text = { Text("Workout", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
                 unselectedContentColor = Slate400,
                 selectedContentColor = Teal400
             )
             Tab(
                 selected = activePlannerTab == 1,
                 onClick = { activePlannerTab = 1 },
-                text = { Text("Routines", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                text = { Text("12-Week Plan", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
                 unselectedContentColor = Slate400,
                 selectedContentColor = Teal400
             )
             Tab(
                 selected = activePlannerTab == 2,
                 onClick = { activePlannerTab = 2 },
-                text = { Text("Logs List", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                text = { Text("Routines", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                unselectedContentColor = Slate400,
+                selectedContentColor = Teal400
+            )
+            Tab(
+                selected = activePlannerTab == 3,
+                onClick = { activePlannerTab = 3 },
+                text = { Text("Logs & Charts", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
                 unselectedContentColor = Slate400,
                 selectedContentColor = Teal400
             )
@@ -87,9 +94,31 @@ fun FitnessPlannerScreen(viewModel: HealthViewModel) {
                 .padding(16.dp)
         ) {
             when (activePlannerTab) {
-                0 -> TwelveWeekPlanView(viewModel, plans, routines)
-                1 -> RoutineBuilderView(viewModel, routines)
-                2 -> LogsTab(viewModel)
+                0 -> WorkoutSessionScreen(viewModel)
+                1 -> TwelveWeekPlanView(viewModel, plans, routines)
+                2 -> RoutineBuilderView(viewModel, routines)
+                3 -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        WorkoutProgressCharts(viewModel)
+                    }
+                    item {
+                        Text(
+                            text = "Activity History",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp)) {
+                            LogsTab(viewModel)
+                        }
+                    }
+                }
             }
         }
     }

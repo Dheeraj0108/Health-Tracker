@@ -303,6 +303,8 @@ fun DashboardTab(viewModel: HealthViewModel) {
     var showCoffeePopup by remember { mutableStateOf(false) }
     var showFloatingShortcutBubble by remember { mutableStateOf(false) }
     var showEditTargetsDialog by remember { mutableStateOf(false) }
+    var quickWeightInput by remember { mutableStateOf("") }
+    var quickNoteInput by remember { mutableStateOf("") }
 
     val exerciseSpeechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -1083,28 +1085,129 @@ if (showFloatingShortcutBubble) {
                 }
 
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            showFloatingShortcutBubble = false
-                            showAddExerciseDialog = true
-                        },
+                    modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Slate800)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.size(40.dp).background(Indigo400.copy(alpha = 0.2f), CircleShape),
-                            contentAlignment = Alignment.Center
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = Indigo400)
+                            Box(
+                                modifier = Modifier.size(40.dp).background(Indigo400.copy(alpha = 0.2f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = Indigo400)
+                            }
+                            Column {
+                                Text("Log Workout", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                Text("Record weight, workout notes, or full exercises", color = Slate400, fontSize = 11.sp)
+                            }
                         }
-                        Column {
-                            Text("Log Workout", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
-                            Text("Record calories burned, duration, activity type", color = Slate400, fontSize = 11.sp)
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // WEIGHT SECTION
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Scale, contentDescription = null, tint = Teal400, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Weight ($weightUnit):", color = Slate300, fontSize = 12.sp, modifier = Modifier.width(90.dp))
+                            OutlinedTextField(
+                                value = quickWeightInput,
+                                onValueChange = { quickWeightInput = it },
+                                placeholder = { Text("e.g. 70.5", color = Slate500, fontSize = 12.sp) },
+                                textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400,
+                                    unfocusedBorderColor = Slate700,
+                                    focusedContainerColor = Slate900,
+                                    unfocusedContainerColor = Slate900
+                                ),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f).height(48.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // NOTES SECTION
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Note, contentDescription = null, tint = Amber400, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Notes:", color = Slate300, fontSize = 12.sp, modifier = Modifier.width(90.dp))
+                            OutlinedTextField(
+                                value = quickNoteInput,
+                                onValueChange = { quickNoteInput = it },
+                                placeholder = { Text("Felt awesome today!", color = Slate500, fontSize = 12.sp) },
+                                textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400,
+                                    unfocusedBorderColor = Slate700,
+                                    focusedContainerColor = Slate900,
+                                    unfocusedContainerColor = Slate900
+                                ),
+                                singleLine = true,
+                                modifier = Modifier.weight(1f).height(48.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Action Buttons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    val parsedWeight = quickWeightInput.toDoubleOrNull()
+                                    if (parsedWeight == null || parsedWeight <= 0) {
+                                        Toast.makeText(context, "Please enter a valid weight!", Toast.LENGTH_SHORT).show()
+                                        return@Button
+                                    }
+                                    
+                                    viewModel.logBody(
+                                        weightKg = parsedWeight,
+                                        chestCm = null,
+                                        waistCm = null,
+                                        hipsCm = null,
+                                        bicepsCm = null,
+                                        thighsCm = null,
+                                        imagePath = null,
+                                        notes = quickNoteInput.ifEmpty { null }
+                                    )
+                                    
+                                    Toast.makeText(context, "Logged body weight & notes! 💪", Toast.LENGTH_SHORT).show()
+                                    quickWeightInput = ""
+                                    quickNoteInput = ""
+                                    showFloatingShortcutBubble = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Teal400),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).testTag("quick_save_weight_btn")
+                            ) {
+                                Text("Save Weight", color = Slate950, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            }
+
+                            Button(
+                                onClick = {
+                                    showFloatingShortcutBubble = false
+                                    showAddExerciseDialog = true
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Slate950),
+                                border = BorderStroke(1.dp, Slate600),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.weight(1f).testTag("quick_full_workout_btn")
+                            ) {
+                                Text("Full Workout", color = Slate300, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            }
                         }
                     }
                 }

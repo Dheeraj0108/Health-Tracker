@@ -15,6 +15,7 @@ import com.example.data.model.BodyLog
 import com.example.data.model.ExerciseRoutine
 import com.example.data.model.WeeklyPlan
 import com.example.data.model.SleepLog
+import com.example.data.model.WorkoutSession
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -121,6 +122,18 @@ interface PlanDao {
 }
 
 @Dao
+interface WorkoutSessionDao {
+    @Query("SELECT * FROM workout_sessions ORDER BY timestamp DESC")
+    fun getAllWorkoutSessions(): Flow<List<WorkoutSession>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWorkoutSession(session: WorkoutSession)
+
+    @Query("DELETE FROM workout_sessions WHERE id = :id")
+    suspend fun deleteWorkoutSessionById(id: Int)
+}
+
+@Dao
 interface SleepDao {
     @Query("SELECT * FROM sleep_logs ORDER BY timestamp DESC")
     fun getAllSleepLogs(): Flow<List<SleepLog>>
@@ -142,9 +155,10 @@ interface SleepDao {
         BodyLog::class,
         ExerciseRoutine::class,
         WeeklyPlan::class,
-        SleepLog::class
+        SleepLog::class,
+        WorkoutSession::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -157,4 +171,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun routineDao(): RoutineDao
     abstract fun planDao(): PlanDao
     abstract fun sleepDao(): SleepDao
+    abstract fun workoutSessionDao(): WorkoutSessionDao
 }

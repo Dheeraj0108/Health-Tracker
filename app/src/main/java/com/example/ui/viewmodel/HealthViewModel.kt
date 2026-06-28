@@ -14,6 +14,7 @@ import com.example.data.model.BodyLog
 import com.example.data.model.ExerciseRoutine
 import com.example.data.model.WeeklyPlan
 import com.example.data.model.SleepLog
+import com.example.data.model.WorkoutSession
 import com.example.data.repository.HealthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -219,6 +220,9 @@ class HealthViewModel(private val repository: HealthRepository, private val cont
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val sleepLogs: StateFlow<List<SleepLog>> = repository.allSleepLogs
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val workoutSessions: StateFlow<List<WorkoutSession>> = repository.allWorkoutSessions
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // UI Status states
@@ -543,7 +547,8 @@ class HealthViewModel(private val repository: HealthRepository, private val cont
         hipsCm: Double?,
         bicepsCm: Double?,
         thighsCm: Double?,
-        imagePath: String?
+        imagePath: String?,
+        notes: String? = null
     ) {
         viewModelScope.launch {
             repository.insertBodyLog(
@@ -554,7 +559,8 @@ class HealthViewModel(private val repository: HealthRepository, private val cont
                     hipsCm = hipsCm,
                     bicepsCm = bicepsCm,
                     thighsCm = thighsCm,
-                    imagePath = imagePath
+                    imagePath = imagePath,
+                    notes = notes
                 )
             )
         }
@@ -639,6 +645,36 @@ class HealthViewModel(private val repository: HealthRepository, private val cont
                     )
                 }
             }
+        }
+    }
+
+    fun logWorkoutSession(name: String, durationMinutes: Int, exercisesJson: String, notes: String? = null) {
+        viewModelScope.launch {
+            repository.insertWorkoutSession(
+                WorkoutSession(
+                    name = name,
+                    durationMinutes = durationMinutes,
+                    exercisesJson = exercisesJson,
+                    notes = notes
+                )
+            )
+            // Also log to the general exercise_logs for dashboard integration!
+            repository.insertExerciseLog(
+                ExerciseLog(
+                    type = "GYM",
+                    exerciseName = name,
+                    sets = null,
+                    reps = null,
+                    durationMinutes = durationMinutes,
+                    distanceKm = null
+                )
+            )
+        }
+    }
+
+    fun deleteWorkoutSession(id: Int) {
+        viewModelScope.launch {
+            repository.deleteWorkoutSession(id)
         }
     }
 }
