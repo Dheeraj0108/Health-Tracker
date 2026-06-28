@@ -54,9 +54,7 @@ import com.example.data.model.WaterLog
 import com.example.data.model.Goal
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
-import com.example.ui.components.CircularProgressRing
-import com.example.ui.components.WeeklyBarChart
-import com.example.ui.components.FitnessCalendar
+import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.HealthViewModel
 import java.io.InputStream
@@ -300,6 +298,11 @@ fun DashboardTab(viewModel: HealthViewModel) {
     var sleepQuality by remember { mutableStateOf(4) }
     var sleepNotes by remember { mutableStateOf("") }
 
+    var showWaterPopup by remember { mutableStateOf(false) }
+    var showExercisePopup by remember { mutableStateOf(false) }
+    var showCoffeePopup by remember { mutableStateOf(false) }
+    var showFloatingShortcutBubble by remember { mutableStateOf(false) }
+
     val exerciseSpeechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -336,12 +339,13 @@ fun DashboardTab(viewModel: HealthViewModel) {
     val goalCarbs = viewModel.getGoalValue("carbs_g", 250.0)
     val goalFat = viewModel.getGoalValue("fat_g", 70.0)
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 80.dp), // add bottom padding so FAB doesn't cover last item
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
         // Welcome Card
         item {
             Card(
@@ -385,155 +389,157 @@ fun DashboardTab(viewModel: HealthViewModel) {
             }
         }
 
-        // Circular progress rings Row 1
+        // All 4 progress circles in 1 Row with Fluid Donut Animation
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Water Ring
+                // Water
                 Card(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showWaterPopup = true },
                     colors = CardDefaults.cardColors(containerColor = Slate900),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("Water", style = MaterialTheme.typography.labelMedium, color = Slate400)
-                        CircularProgressRing(
+                        Text("Water", style = MaterialTheme.typography.labelSmall, color = Slate400, maxLines = 1)
+                        com.example.ui.components.FluidDonutProgress(
                             progress = if (goalWater > 0) todayWater.toFloat() / goalWater else 0f,
                             color = Teal400,
-                            size = 70.dp
+                            size = 56.dp
                         ) {
                             Icon(
                                 imageVector = Icons.Default.LocalDrink,
                                 contentDescription = "Water",
                                 tint = Teal400,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                         val waterText = if (volumeUnit == "L") {
-                            "${String.format(Locale.US, "%.2f", todayWater / 1000.0)} / ${String.format(Locale.US, "%.2f", goalWater / 1000.0)} L"
+                            "${String.format(Locale.US, "%.1f", todayWater / 1000.0)}/${String.format(Locale.US, "%.1f", goalWater / 1000.0)}L"
                         } else {
-                            "$todayWater / $goalWater ml"
+                            "$todayWater/$goalWater ml"
                         }
                         Text(
                             waterText,
-                            fontSize = 11.sp,
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1
                         )
                     }
                 }
 
-                // Exercise Ring
+                // Exercise
                 Card(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showExercisePopup = true },
                     colors = CardDefaults.cardColors(containerColor = Slate900),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("Exercise", style = MaterialTheme.typography.labelMedium, color = Slate400)
-                        CircularProgressRing(
+                        Text("Exercise", style = MaterialTheme.typography.labelSmall, color = Slate400, maxLines = 1)
+                        com.example.ui.components.FluidDonutProgress(
                             progress = if (goalExercise > 0) todayExercise.toFloat() / goalExercise else 0f,
                             color = Indigo400,
-                            size = 70.dp
+                            size = 56.dp
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DirectionsRun,
                                 contentDescription = "Exercise",
                                 tint = Indigo400,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                         Text(
-                            "$todayExercise / $goalExercise m",
-                            fontSize = 11.sp,
+                            "$todayExercise/$goalExercise m",
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1
                         )
                     }
                 }
-            }
-        }
 
-        // Circular progress rings Row 2
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Caffeine Ring
+                // Caffeine
                 Card(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { showCoffeePopup = true },
                     colors = CardDefaults.cardColors(containerColor = Slate900),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("Caffeine", style = MaterialTheme.typography.labelMedium, color = Slate400)
-                        CircularProgressRing(
+                        Text("Caffeine", style = MaterialTheme.typography.labelSmall, color = Slate400, maxLines = 1)
+                        com.example.ui.components.FluidDonutProgress(
                             progress = if (goalCaffeine > 0) todayCaffeine.toFloat() / goalCaffeine else 0f,
                             color = Amber400,
-                            size = 70.dp
+                            size = 56.dp
                         ) {
                             Icon(
                                 imageVector = Icons.Default.LocalCafe,
                                 contentDescription = "Caffeine",
                                 tint = Amber400,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                         Text(
-                            "$todayCaffeine / $goalCaffeine mg",
-                            fontSize = 11.sp,
+                            "$todayCaffeine/$goalCaffeine mg",
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1
                         )
                     }
                 }
 
-                // Sleep Ring (Clickable!)
+                // Sleep
                 Card(
                     modifier = Modifier
                         .weight(1f)
                         .clickable { showLogSleepDialog = true },
                     colors = CardDefaults.cardColors(containerColor = Slate900),
-                    shape = RoundedCornerShape(16.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("Sleep", style = MaterialTheme.typography.labelMedium, color = Slate400)
-                        CircularProgressRing(
+                        Text("Sleep", style = MaterialTheme.typography.labelSmall, color = Slate400, maxLines = 1)
+                        com.example.ui.components.FluidDonutProgress(
                             progress = if (goalSleep > 0) (todaySleep / goalSleep).toFloat() else 0f,
                             color = Emerald400,
-                            size = 70.dp
+                            size = 56.dp
                         ) {
                             Icon(
                                 imageVector = Icons.Default.NightsStay,
                                 contentDescription = "Sleep",
                                 tint = Emerald400,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                         Text(
-                            "${String.format(Locale.US, "%.1f", todaySleep)} / ${String.format(Locale.US, "%.1f", goalSleep)} h",
-                            fontSize = 11.sp,
+                            "${String.format(Locale.US, "%.1f", todaySleep)}/${String.format(Locale.US, "%.1f", goalSleep)}h",
+                            fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1
                         )
                     }
                 }
@@ -630,80 +636,491 @@ fun DashboardTab(viewModel: HealthViewModel) {
             )
         }
 
-        // Quick log actions
+        // Monthly Fitness Goals Calendar
         item {
-            Text(
-                "Quick Shortcuts",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
+            val exerciseLogs by viewModel.exerciseLogs.collectAsStateWithLifecycle()
+            FitnessCalendar(
+                exerciseLogs = exerciseLogs,
+                dailyGoalMin = goalExercise.toDouble(),
+                modifier = Modifier.padding(vertical = 4.dp)
             )
         }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        viewModel.logWater(250)
-                        Toast.makeText(context, "+250ml Water Added", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Slate900),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.LocalDrink, contentDescription = null, tint = Teal400)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("+250ml Water", color = Slate50, fontSize = 11.sp)
-                }
-
-                Button(
-                    onClick = {
-                        viewModel.logCaffeine(80)
-                        Toast.makeText(context, "+80mg Caffeine Added", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = Slate900),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.LocalCafe, contentDescription = null, tint = Amber400)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("+80mg Cafe", color = Slate50, fontSize = 11.sp)
-                }
-            }
-        }
-
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = { showAddExerciseDialog = true },
-                    modifier = Modifier.weight(1f).testTag("log_workout_shortcut_btn"),
-                    colors = ButtonDefaults.buttonColors(containerColor = Slate900),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = Indigo400)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Log Workout", color = Slate50, fontSize = 11.sp)
-                }
-
-                Button(
-                    onClick = { showLogSleepDialog = true },
-                    modifier = Modifier.weight(1f).testTag("log_sleep_shortcut_btn"),
-                    colors = ButtonDefaults.buttonColors(containerColor = Slate900),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.NightsStay, contentDescription = null, tint = Emerald400)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Log Sleep", color = Slate50, fontSize = 11.sp)
-                }
-            }
-        }
     }
+
+    // Custom floating action bubble inside DashboardTab
+    FloatingActionButton(
+        onClick = { showFloatingShortcutBubble = true },
+        containerColor = Teal500,
+        contentColor = Slate950,
+        shape = CircleShape,
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(16.dp)
+            .testTag("floating_shortcut_bubble")
+    ) {
+        Icon(
+            imageVector = Icons.Default.Add,
+            contentDescription = "Quick Shortcut",
+            modifier = Modifier.size(28.dp)
+        )
+    }
+}
+
+// ---------------- NEW DIALOGS & POPUPS ----------------
+
+if (showWaterPopup) {
+    AlertDialog(
+        onDismissRequest = { showWaterPopup = false },
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.LocalDrink, contentDescription = null, tint = Teal400)
+                Text("Hydration Window Pane", fontWeight = FontWeight.Bold, color = Slate50, fontSize = 18.sp)
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Tap a glass to fill or empty it. Each glass is 500 ml.",
+                    color = Slate400,
+                    fontSize = 13.sp
+                )
+
+                // 2x4 Glass Grid (Window pane style)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    for (row in 0 until 2) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            for (col in 0 until 4) {
+                                val index = row * 4 + col
+                                val isGlassFilled = index < (todayWater / 500.0)
+
+                                AnimatedGlass(
+                                    isFilled = isGlassFilled,
+                                    onClick = {
+                                        val change = if (isGlassFilled) -500 else 500
+                                        if (todayWater + change >= 0) {
+                                            viewModel.logWater(change)
+                                        } else {
+                                            Toast.makeText(context, "Cannot reduce below 0 ml", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                ) {
+                    Text("Today's Total:", color = Slate300, fontSize = 14.sp)
+                    Text(
+                        "$todayWater / $goalWater ml",
+                        color = Teal400,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { showWaterPopup = false },
+                colors = ButtonDefaults.buttonColors(containerColor = Teal500)
+            ) {
+                Text("Close", color = Slate950, fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = Slate900
+    )
+}
+
+if (showExercisePopup) {
+    val stepsWalked by viewModel.stepsWalked.collectAsStateWithLifecycle()
+    AlertDialog(
+        onDismissRequest = { showExercisePopup = false },
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.DirectionsRun, contentDescription = null, tint = Indigo400)
+                Text("Exercise & Activity", fontWeight = FontWeight.Bold, color = Slate50, fontSize = 18.sp)
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Slate800),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Total Hours Logged", color = Slate400, fontSize = 11.sp)
+                        Text(
+                            String.format(Locale.US, "%.2f hours", todayExercise.toDouble() / 60.0),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
+                        Text(
+                            "Equivalent to $todayExercise minutes",
+                            color = Slate300,
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Slate800),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("WHO Recommended Baseline", color = Slate400, fontSize = 11.sp)
+                            Text("90 mins", color = Indigo400, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        val baselineProgress = (todayExercise.toFloat() / 90f).coerceIn(0f, 1f)
+                        LinearProgressIndicator(
+                            progress = { baselineProgress },
+                            color = Indigo400,
+                            trackColor = Slate700,
+                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (todayExercise >= 90) "Daily activity baseline achieved! 🎉" else "You are ${90 - todayExercise} mins away from daily baseline.",
+                            color = if (todayExercise >= 90) Emerald400 else Slate300,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Slate800),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(Icons.Default.DirectionsWalk, contentDescription = null, tint = Emerald400, modifier = Modifier.size(16.dp))
+                            Text("Pessimistic Step Counter", color = Slate400, fontSize = 11.sp)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "$stepsWalked steps",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp
+                        )
+                        Text(
+                            "Measurement derived directly from device accelerometer using conservative motion filters.",
+                            color = Slate400,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                        ) {
+                            Button(
+                                onClick = { viewModel.addMockSteps(50) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Slate900),
+                                modifier = Modifier.weight(1f).height(32.dp),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text("Simulate 50 Steps", fontSize = 10.sp, color = Color.White)
+                            }
+                            Button(
+                                onClick = { viewModel.resetSteps() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Slate900),
+                                modifier = Modifier.weight(0.7f).height(32.dp),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text("Reset", fontSize = 10.sp, color = Crimson400)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { showExercisePopup = false },
+                colors = ButtonDefaults.buttonColors(containerColor = Indigo400)
+            ) {
+                Text("Close", color = Color.White, fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = Slate900
+    )
+}
+
+if (showCoffeePopup) {
+    AlertDialog(
+        onDismissRequest = { showCoffeePopup = false },
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(Icons.Default.LocalCafe, contentDescription = null, tint = Amber400)
+                Text("Caffeine Dashboard", fontWeight = FontWeight.Bold, color = Slate50, fontSize = 18.sp)
+            }
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Slate800),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Estimated Cups Consumed", color = Slate400, fontSize = 11.sp)
+                        val cupsCount = todayCaffeine.toDouble() / 80.0
+                        Text(
+                            String.format(Locale.US, "%.1f Cups", cupsCount),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp
+                        )
+                        Text(
+                            "Calculated using 80mg caffeine per standard 200ml cup.",
+                            color = Slate300,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Slate800),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Caffeine Intake Status", color = Slate400, fontSize = 11.sp)
+                            Text("WHO Limit: 400 mg", color = Amber400, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        val caffeineProgress = (todayCaffeine.toFloat() / 400f).coerceIn(0f, 1f)
+                        LinearProgressIndicator(
+                            progress = { caffeineProgress },
+                            color = if (todayCaffeine > 400) Crimson500 else Amber400,
+                            trackColor = Slate700,
+                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (todayCaffeine > 400) {
+                                "Exceeded WHO limit of 400mg! Reduce intake. ⚠️"
+                            } else {
+                                "You have consumed $todayCaffeine mg. Safely within WHO limit."
+                            },
+                            color = if (todayCaffeine > 400) Crimson400 else Emerald400,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Slate800),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Estimated Coffee Volume", color = Slate400, fontSize = 11.sp)
+                        val estimatedVolumeMl = (todayCaffeine.toDouble() / 80.0) * 200.0
+                        Text(
+                            String.format(Locale.US, "%.0f ml", estimatedVolumeMl),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
+                        Text(
+                            "Total fluid volume associated with caffeine logs.",
+                            color = Slate400,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { showCoffeePopup = false },
+                colors = ButtonDefaults.buttonColors(containerColor = Amber400)
+            ) {
+                Text("Close", color = Slate950, fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = Slate900
+    )
+}
+
+if (showFloatingShortcutBubble) {
+    AlertDialog(
+        onDismissRequest = { showFloatingShortcutBubble = false },
+        title = {
+            Text("Quick Logging Bubble", fontWeight = FontWeight.Bold, color = Slate50, fontSize = 18.sp)
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Quickly record your health metrics for today:", color = Slate400, fontSize = 13.sp)
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            viewModel.logWater(250)
+                            Toast.makeText(context, "+250ml Water Added", Toast.LENGTH_SHORT).show()
+                            showFloatingShortcutBubble = false
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Slate800)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(40.dp).background(Teal400.copy(alpha = 0.2f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.LocalDrink, contentDescription = null, tint = Teal400)
+                        }
+                        Column {
+                            Text("+250ml Water", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                            Text("Quickly add standard hydration glass", color = Slate400, fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            viewModel.logCaffeine(80)
+                            Toast.makeText(context, "+80mg Caffeine Added", Toast.LENGTH_SHORT).show()
+                            showFloatingShortcutBubble = false
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Slate800)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(40.dp).background(Amber400.copy(alpha = 0.2f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.LocalCafe, contentDescription = null, tint = Amber400)
+                        }
+                        Column {
+                            Text("+80mg Caffeine", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                            Text("Quickly add cup of coffee", color = Slate400, fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            showFloatingShortcutBubble = false
+                            showAddExerciseDialog = true
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Slate800)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(40.dp).background(Indigo400.copy(alpha = 0.2f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = Indigo400)
+                        }
+                        Column {
+                            Text("Log Workout", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                            Text("Record calories burned, duration, activity type", color = Slate400, fontSize = 11.sp)
+                        }
+                    }
+                }
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            showFloatingShortcutBubble = false
+                            showLogSleepDialog = true
+                        },
+                    colors = CardDefaults.cardColors(containerColor = Slate800)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(40.dp).background(Emerald400.copy(alpha = 0.2f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.NightsStay, contentDescription = null, tint = Emerald400)
+                        }
+                        Column {
+                            Text("Log Sleep", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                            Text("Record hours slept, quality and notes", color = Slate400, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { showFloatingShortcutBubble = false }) {
+                Text("Dismiss", color = Slate400, fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = Slate900
+    )
+}
 
     if (showLogSleepDialog) {
         AlertDialog(

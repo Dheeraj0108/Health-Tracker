@@ -28,11 +28,58 @@ import java.util.Date
 import java.util.Locale
 
 import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import kotlin.math.sqrt
 import kotlinx.coroutines.flow.asStateFlow
 
 class HealthViewModel(private val repository: HealthRepository, private val context: Context) : ViewModel() {
 
     private val prefs = context.getSharedPreferences("user_settings", Context.MODE_PRIVATE)
+
+    // Accelerometer Step Counter (Pessimistic)
+    private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+    private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+    private val _stepsWalked = MutableStateFlow(prefs.getInt("steps_walked", 0))
+    val stepsWalked = _stepsWalked.asStateFlow()
+
+    private var lastStepTime = 0L
+
+    private val sensorEventListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent?) {
+            if (event == null || event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
+            val x = event.values[0]
+            val y = event.values[1]
+            val z = event.values[2]
+
+            val magnitude = sqrt(x * x + y * y + z * z)
+            val currentTime = System.currentTimeMillis()
+
+            // Strict & selective step detection (pessimistic threshold: 14.5 m/s^2)
+            if (magnitude > 14.5f && (currentTime - lastStepTime) > 450L) {
+                lastStepTime = currentTime
+                val newSteps = _stepsWalked.value + 1
+                _stepsWalked.value = newSteps
+                prefs.edit().putInt("steps_walked", newSteps).apply()
+            }
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+    }
+
+    fun addMockSteps(count: Int) {
+        val newSteps = _stepsWalked.value + count
+        _stepsWalked.value = newSteps
+        prefs.edit().putInt("steps_walked", newSteps).apply()
+    }
+
+    fun resetSteps() {
+        _stepsWalked.value = 0
+        prefs.edit().putInt("steps_walked", 0).apply()
+    }
 
     private val _userAge = MutableStateFlow(prefs.getInt("user_age", 25))
     val userAge = _userAge.asStateFlow()
@@ -192,6 +239,14 @@ class HealthViewModel(private val repository: HealthRepository, private val cont
             repository.ensureDefaultGoals()
             generateWeeklyInsights()
         }
+        accelerometer?.let {
+            sensorManager.registerListener(sensorEventListener, it, SensorManager.SENSOR_DELAY_UI)
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        sensorManager.unregisterListener(sensorEventListener)
     }
 
     // Logging actions
