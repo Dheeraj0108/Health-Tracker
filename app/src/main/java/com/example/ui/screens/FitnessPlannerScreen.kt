@@ -1,7 +1,10 @@
 package com.example.ui.screens
 
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -36,7 +39,7 @@ import com.example.ui.viewmodel.HealthViewModel
 @Composable
 fun FitnessPlannerScreen(viewModel: HealthViewModel) {
     val context = LocalContext.current
-    var activePlannerTab by remember { mutableStateOf(0) } // 0 = Workout, 1 = 12-Week Plan, 2 = Routine Builder, 3 = Logs & Charts
+    var activePlannerTab by remember { mutableStateOf(0) } // 0 = Workout, 1 = 12-Week Plan, 2 = Routines
     
     val routines by viewModel.routines.collectAsStateWithLifecycle()
     val plans by viewModel.plans.collectAsStateWithLifecycle()
@@ -79,44 +82,36 @@ fun FitnessPlannerScreen(viewModel: HealthViewModel) {
                 unselectedContentColor = Slate400,
                 selectedContentColor = Teal400
             )
-            Tab(
-                selected = activePlannerTab == 3,
-                onClick = { activePlannerTab = 3 },
-                text = { Text("Logs & Charts", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
-                unselectedContentColor = Slate400,
-                selectedContentColor = Teal400
-            )
         }
 
-        Box(
+        Card(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
+                .padding(8.dp)
+                .shadow(8.dp, shape = RoundedCornerShape(16.dp), clip = true),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (AppThemeState.themeMode == "white") Color.White else Slate900
+            ),
+            border = BorderStroke(1.dp, if (AppThemeState.themeMode == "white") Color(0xFFE2E8F0) else Slate800)
         ) {
-            when (activePlannerTab) {
-                0 -> WorkoutSessionScreen(viewModel)
-                1 -> TwelveWeekPlanView(viewModel, plans, routines)
-                2 -> RoutineBuilderView(viewModel, routines)
-                3 -> LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+            AnimatedContent(
+                targetState = activePlannerTab,
+                transitionSpec = {
+                    (scaleIn(animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(animationSpec = tween(220)))
+                        .togetherWith(scaleOut(animationSpec = spring(dampingRatio = 0.85f)) + fadeOut(animationSpec = tween(180)))
+                },
+                modifier = Modifier.fillMaxSize()
+            ) { targetSubTab ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
                 ) {
-                    item {
-                        WorkoutProgressCharts(viewModel)
-                    }
-                    item {
-                        Text(
-                            text = "Activity History",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-                    item {
-                        Box(modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp)) {
-                            LogsTab(viewModel)
-                        }
+                    when (targetSubTab) {
+                        0 -> WorkoutSessionScreen(viewModel)
+                        1 -> TwelveWeekPlanView(viewModel, plans, routines)
+                        2 -> RoutineBuilderView(viewModel, routines)
                     }
                 }
             }

@@ -8,9 +8,8 @@ import android.content.Intent
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -151,17 +150,17 @@ fun MainAppScreen(viewModel: HealthViewModel) {
                         ) {
                             DropdownMenuItem(
                                 text = { Text("Dark Gold Theme", color = Slate50, fontWeight = FontWeight.SemiBold) },
-                                leadingIcon = { Icon(Icons.Default.DarkMode, contentDescription = null, tint = Color(0xFFFACC15)) },
+                                leadingIcon = { Icon(Icons.Default.DarkMode, contentDescription = null, tint = Color(0xFFFFD700)) },
                                 onClick = {
-                                    AppThemeState.themeMode = "dark_yellow"
+                                    AppThemeState.themeMode = "dark_gold"
                                     showThemeMenu = false
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text("Warm Nude Theme", color = Slate50, fontWeight = FontWeight.SemiBold) },
-                                leadingIcon = { Icon(Icons.Default.LightMode, contentDescription = null, tint = Color(0xFFB5835A)) },
+                                text = { Text("White Theme", color = Slate50, fontWeight = FontWeight.SemiBold) },
+                                leadingIcon = { Icon(Icons.Default.LightMode, contentDescription = null, tint = Color(0xFF0284C7)) },
                                 onClick = {
-                                    AppThemeState.themeMode = "light_nude"
+                                    AppThemeState.themeMode = "white"
                                     showThemeMenu = false
                                 }
                             )
@@ -255,15 +254,36 @@ fun MainAppScreen(viewModel: HealthViewModel) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Slate950)
+                .background(if (AppThemeState.themeMode == "white") Color(0xFFF1F5F9) else Slate950)
                 .padding(innerPadding)
         ) {
-            when (selectedTab) {
-                0 -> DashboardTab(viewModel)
-                1 -> FitnessPlannerScreen(viewModel)
-                2 -> NutriSnapTab(viewModel)
-                3 -> BodyTrackerScreen(viewModel)
-                4 -> ExplorerCompositeScreen(viewModel)
+            Card(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+                    .shadow(12.dp, shape = RoundedCornerShape(24.dp), clip = true),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (AppThemeState.themeMode == "white") Color.White else Slate900
+                ),
+                border = BorderStroke(1.dp, if (AppThemeState.themeMode == "white") Color(0xFFE2E8F0) else Slate800)
+            ) {
+                AnimatedContent(
+                    targetState = selectedTab,
+                    transitionSpec = {
+                        (scaleIn(animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(animationSpec = tween(220)))
+                            .togetherWith(scaleOut(animationSpec = spring(dampingRatio = 0.85f)) + fadeOut(animationSpec = tween(180)))
+                    },
+                    modifier = Modifier.fillMaxSize()
+                ) { targetTab ->
+                    when (targetTab) {
+                        0 -> DashboardTab(viewModel)
+                        1 -> FitnessPlannerScreen(viewModel)
+                        2 -> NutriSnapTab(viewModel)
+                        3 -> BodyTrackerScreen(viewModel)
+                        4 -> ExplorerCompositeScreen(viewModel)
+                    }
+                }
             }
         }
     }
@@ -302,9 +322,19 @@ fun DashboardTab(viewModel: HealthViewModel) {
     var showExercisePopup by remember { mutableStateOf(false) }
     var showCoffeePopup by remember { mutableStateOf(false) }
     var showFloatingShortcutBubble by remember { mutableStateOf(false) }
+    var showQuickWorkoutConfetti by remember { mutableStateOf(false) }
     var showEditTargetsDialog by remember { mutableStateOf(false) }
     var quickWeightInput by remember { mutableStateOf("") }
     var quickNoteInput by remember { mutableStateOf("") }
+
+    var quickWorkoutToggle by remember { mutableStateOf(false) }
+    var quickActivityArchetype by remember { mutableStateOf("Gym") } // "Gym", "Walk", "Run"
+    var quickWorkoutName by remember { mutableStateOf("") }
+    var quickWorkoutWeight by remember { mutableStateOf("") }
+    var quickWorkoutSets by remember { mutableStateOf(3) }
+    var quickWorkoutReps by remember { mutableStateOf(10) }
+    var quickWorkoutDuration by remember { mutableStateOf(30) }
+    var quickWorkoutDistance by remember { mutableStateOf(2.5) }
 
     val exerciseSpeechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -1022,219 +1052,401 @@ if (showFloatingShortcutBubble) {
             Text("Quick Logging Bubble", fontWeight = FontWeight.Bold, color = Slate50, fontSize = 18.sp)
         },
         text = {
-            Column(
+            LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Quickly record your health metrics for today:", color = Slate400, fontSize = 13.sp)
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            viewModel.logWater(250)
-                            Toast.makeText(context, "+250ml Water Added", Toast.LENGTH_SHORT).show()
-                            showFloatingShortcutBubble = false
-                        },
-                    colors = CardDefaults.cardColors(containerColor = Slate800)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.size(40.dp).background(Teal400.copy(alpha = 0.2f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.LocalDrink, contentDescription = null, tint = Teal400)
-                        }
-                        Column {
-                            Text("+250ml Water", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
-                            Text("Quickly add standard hydration glass", color = Slate400, fontSize = 11.sp)
-                        }
-                    }
+                item {
+                    Text("Quickly record your health metrics for today:", color = Slate400, fontSize = 13.sp)
                 }
 
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            viewModel.logCaffeine(80)
-                            Toast.makeText(context, "+80mg Caffeine Added", Toast.LENGTH_SHORT).show()
-                            showFloatingShortcutBubble = false
-                        },
-                    colors = CardDefaults.cardColors(containerColor = Slate800)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.logWater(250)
+                                Toast.makeText(context, "+250ml Water Added", Toast.LENGTH_SHORT).show()
+                                showFloatingShortcutBubble = false
+                            },
+                        colors = CardDefaults.cardColors(containerColor = Slate800)
                     ) {
-                        Box(
-                            modifier = Modifier.size(40.dp).background(Amber400.copy(alpha = 0.2f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.LocalCafe, contentDescription = null, tint = Amber400)
-                        }
-                        Column {
-                            Text("+80mg Caffeine", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
-                            Text("Quickly add cup of coffee", color = Slate400, fontSize = 11.sp)
-                        }
-                    }
-                }
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Slate800)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
                         Row(
+                            modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Box(
-                                modifier = Modifier.size(40.dp).background(Indigo400.copy(alpha = 0.2f), CircleShape),
+                                modifier = Modifier.size(40.dp).background(Teal400.copy(alpha = 0.2f), CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = Indigo400)
+                                Icon(Icons.Default.LocalDrink, contentDescription = null, tint = Teal400)
                             }
                             Column {
-                                Text("Log Workout", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
-                                Text("Record weight, workout notes, or full exercises", color = Slate400, fontSize = 11.sp)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // WEIGHT SECTION
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Scale, contentDescription = null, tint = Teal400, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Weight ($weightUnit):", color = Slate300, fontSize = 12.sp, modifier = Modifier.width(90.dp))
-                            OutlinedTextField(
-                                value = quickWeightInput,
-                                onValueChange = { quickWeightInput = it },
-                                placeholder = { Text("e.g. 70.5", color = Slate500, fontSize = 12.sp) },
-                                textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Teal400,
-                                    unfocusedBorderColor = Slate700,
-                                    focusedContainerColor = Slate900,
-                                    unfocusedContainerColor = Slate900
-                                ),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                modifier = Modifier.weight(1f).height(48.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // NOTES SECTION
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Note, contentDescription = null, tint = Amber400, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Notes:", color = Slate300, fontSize = 12.sp, modifier = Modifier.width(90.dp))
-                            OutlinedTextField(
-                                value = quickNoteInput,
-                                onValueChange = { quickNoteInput = it },
-                                placeholder = { Text("Felt awesome today!", color = Slate500, fontSize = 12.sp) },
-                                textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Teal400,
-                                    unfocusedBorderColor = Slate700,
-                                    focusedContainerColor = Slate900,
-                                    unfocusedContainerColor = Slate900
-                                ),
-                                singleLine = true,
-                                modifier = Modifier.weight(1f).height(48.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Action Buttons
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    val parsedWeight = quickWeightInput.toDoubleOrNull()
-                                    if (parsedWeight == null || parsedWeight <= 0) {
-                                        Toast.makeText(context, "Please enter a valid weight!", Toast.LENGTH_SHORT).show()
-                                        return@Button
-                                    }
-                                    
-                                    viewModel.logBody(
-                                        weightKg = parsedWeight,
-                                        chestCm = null,
-                                        waistCm = null,
-                                        hipsCm = null,
-                                        bicepsCm = null,
-                                        thighsCm = null,
-                                        imagePath = null,
-                                        notes = quickNoteInput.ifEmpty { null }
-                                    )
-                                    
-                                    Toast.makeText(context, "Logged body weight & notes! 💪", Toast.LENGTH_SHORT).show()
-                                    quickWeightInput = ""
-                                    quickNoteInput = ""
-                                    showFloatingShortcutBubble = false
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Teal400),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f).testTag("quick_save_weight_btn")
-                            ) {
-                                Text("Save Weight", color = Slate950, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                            }
-
-                            Button(
-                                onClick = {
-                                    showFloatingShortcutBubble = false
-                                    showAddExerciseDialog = true
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Slate950),
-                                border = BorderStroke(1.dp, Slate600),
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.weight(1f).testTag("quick_full_workout_btn")
-                            ) {
-                                Text("Full Workout", color = Slate300, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                Text("+250ml Water", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                Text("Quickly add standard hydration glass", color = Slate400, fontSize = 11.sp)
                             }
                         }
                     }
                 }
 
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            showFloatingShortcutBubble = false
-                            showLogSleepDialog = true
-                        },
-                    colors = CardDefaults.cardColors(containerColor = Slate800)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.logCaffeine(80)
+                                Toast.makeText(context, "+80mg Caffeine Added", Toast.LENGTH_SHORT).show()
+                                showFloatingShortcutBubble = false
+                            },
+                        colors = CardDefaults.cardColors(containerColor = Slate800)
                     ) {
-                        Box(
-                            modifier = Modifier.size(40.dp).background(Emerald400.copy(alpha = 0.2f), CircleShape),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(Icons.Default.NightsStay, contentDescription = null, tint = Emerald400)
+                            Box(
+                                modifier = Modifier.size(40.dp).background(Amber400.copy(alpha = 0.2f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.LocalCafe, contentDescription = null, tint = Amber400)
+                            }
+                            Column {
+                                Text("+80mg Caffeine", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                Text("Quickly add cup of coffee", color = Slate400, fontSize = 11.sp)
+                            }
                         }
-                        Column {
-                            Text("Log Sleep", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
-                            Text("Record hours slept, quality and notes", color = Slate400, fontSize = 11.sp)
+                    }
+                }
+
+                // Upgraded Log Workout Toggle Section
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Slate800),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier.size(40.dp).background(Indigo400.copy(alpha = 0.2f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.FitnessCenter, contentDescription = null, tint = Indigo400)
+                                    }
+                                    Column {
+                                        Text("Log Workout", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                        Text("Record real-time workout stats", color = Slate400, fontSize = 11.sp)
+                                    }
+                                }
+                                Switch(
+                                    checked = quickWorkoutToggle,
+                                    onCheckedChange = { quickWorkoutToggle = it },
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Teal400,
+                                        checkedTrackColor = Teal400.copy(alpha = 0.4f),
+                                        uncheckedThumbColor = Slate400,
+                                        uncheckedTrackColor = Slate700
+                                    ),
+                                    modifier = Modifier.testTag("log_workout_toggle")
+                                )
+                            }
+
+                            if (quickWorkoutToggle) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Choose your workout archetype to instantly track your metrics:",
+                                    color = Teal400,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                )
+
+                                // Interactive Menu to choose archetype: Gym, Walk, Run
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    listOf("Gym", "Walk", "Run").forEach { type ->
+                                        val isSelected = quickActivityArchetype == type
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (isSelected) Teal400 else Slate900)
+                                                .clickable { quickActivityArchetype = type }
+                                                .padding(vertical = 8.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = type,
+                                                color = if (isSelected) Slate950 else Slate300,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Configuration Panels based on choice
+                                if (quickActivityArchetype == "Gym") {
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        // Workout Name
+                                        OutlinedTextField(
+                                            value = quickWorkoutName,
+                                            onValueChange = { quickWorkoutName = it },
+                                            label = { Text("Workout Name") },
+                                            placeholder = { Text("e.g. Bench Press") },
+                                            textStyle = LocalTextStyle.current.copy(color = Color.White),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Teal400,
+                                                unfocusedBorderColor = Slate700
+                                            ),
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        // Weight Input
+                                        OutlinedTextField(
+                                            value = quickWorkoutWeight,
+                                            onValueChange = { quickWorkoutWeight = it },
+                                            label = { Text("Weight ($weightUnit)") },
+                                            placeholder = { Text("e.g. 80.0") },
+                                            textStyle = LocalTextStyle.current.copy(color = Color.White),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Teal400,
+                                                unfocusedBorderColor = Slate700
+                                            ),
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+
+                                        // Sets and Reps counters
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                        ) {
+                                            // Sets Counter
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text("Sets", color = Slate300, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .background(Slate900, RoundedCornerShape(8.dp))
+                                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    IconButton(
+                                                        onClick = { if (quickWorkoutSets > 1) quickWorkoutSets-- },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Remove, contentDescription = "Decrease Sets", tint = Teal400)
+                                                    }
+                                                    Text(text = quickWorkoutSets.toString(), color = Color.White, fontWeight = FontWeight.Bold)
+                                                    IconButton(
+                                                        onClick = { quickWorkoutSets++ },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Add, contentDescription = "Increase Sets", tint = Teal400)
+                                                    }
+                                                }
+                                            }
+
+                                            // Reps Counter
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text("Reps", color = Slate300, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .background(Slate900, RoundedCornerShape(8.dp))
+                                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    IconButton(
+                                                        onClick = { if (quickWorkoutReps > 1) quickWorkoutReps-- },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Remove, contentDescription = "Decrease Reps", tint = Teal400)
+                                                    }
+                                                    Text(text = quickWorkoutReps.toString(), color = Color.White, fontWeight = FontWeight.Bold)
+                                                    IconButton(
+                                                        onClick = { quickWorkoutReps++ },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(Icons.Default.Add, contentDescription = "Increase Reps", tint = Teal400)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Duration slider
+                                        Column {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text("Duration", color = Slate300, fontSize = 12.sp)
+                                                Text("$quickWorkoutDuration mins", color = Teal400, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            }
+                                            Slider(
+                                                value = quickWorkoutDuration.toFloat(),
+                                                onValueChange = { quickWorkoutDuration = it.toInt() },
+                                                valueRange = 5f..180f,
+                                                steps = 34,
+                                                colors = SliderDefaults.colors(
+                                                    thumbColor = Teal400,
+                                                    activeTrackColor = Teal400
+                                                )
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    // Walk or Run Configuration Panel
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        // Distance entry
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Distance", color = Slate300, fontSize = 12.sp)
+                                            Text(String.format(Locale.US, "%.1f km", quickWorkoutDistance), color = Teal400, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        }
+                                        Slider(
+                                            value = quickWorkoutDistance.toFloat(),
+                                            onValueChange = { quickWorkoutDistance = Math.round(it * 10) / 10.0 },
+                                            valueRange = 0.5f..25f,
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = Teal400,
+                                                activeTrackColor = Teal400
+                                            )
+                                        )
+
+                                        // Duration Entry
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Duration", color = Slate300, fontSize = 12.sp)
+                                            Text("$quickWorkoutDuration mins", color = Teal400, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        }
+                                        Slider(
+                                            value = quickWorkoutDuration.toFloat(),
+                                            onValueChange = { quickWorkoutDuration = it.toInt() },
+                                            valueRange = 5f..120f,
+                                            steps = 22,
+                                            colors = SliderDefaults.colors(
+                                                thumbColor = Teal400,
+                                                activeTrackColor = Teal400
+                                            )
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Save Activity button
+                                Button(
+                                    onClick = {
+                                        if (quickActivityArchetype == "Gym") {
+                                            if (quickWorkoutName.isBlank()) {
+                                                Toast.makeText(context, "Please enter a workout name!", Toast.LENGTH_SHORT).show()
+                                                return@Button
+                                            }
+                                            val wt = quickWorkoutWeight.toDoubleOrNull() ?: 0.0
+                                            viewModel.logExercise(
+                                                type = "Gym",
+                                                exerciseName = quickWorkoutName,
+                                                sets = quickWorkoutSets,
+                                                reps = quickWorkoutReps,
+                                                durationMinutes = quickWorkoutDuration,
+                                                distanceKm = null
+                                            )
+                                            
+                                            // Handle personal record check if weight is entered
+                                            if (wt > 0.0) {
+                                                viewModel.checkAndLogPersonalRecord(
+                                                    exerciseName = quickWorkoutName,
+                                                    weight = wt,
+                                                    reps = quickWorkoutReps,
+                                                    onNewRecord = {
+                                                        showQuickWorkoutConfetti = true
+                                                    }
+                                                )
+                                            }
+                                            
+                                            showQuickWorkoutConfetti = true // Give congratulations confetti feedback
+                                            Toast.makeText(context, "Workout logged successfully! Congratulations! 🎉", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            viewModel.logExercise(
+                                                type = quickActivityArchetype,
+                                                exerciseName = null,
+                                                sets = null,
+                                                reps = null,
+                                                durationMinutes = quickWorkoutDuration,
+                                                distanceKm = quickWorkoutDistance
+                                            )
+                                            showQuickWorkoutConfetti = true // Give congratulations confetti feedback
+                                            Toast.makeText(context, "$quickActivityArchetype logged successfully! Great job! 🎉", Toast.LENGTH_LONG).show()
+                                        }
+                                        
+                                        // Reset
+                                        quickWorkoutName = ""
+                                        quickWorkoutWeight = ""
+                                        quickWorkoutToggle = false
+                                        showFloatingShortcutBubble = false
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Teal400),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth().testTag("save_quick_workout_btn")
+                                ) {
+                                    Text("Save Workout Session", color = Slate950, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showFloatingShortcutBubble = false
+                                showLogSleepDialog = true
+                            },
+                        colors = CardDefaults.cardColors(containerColor = Slate800)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.size(40.dp).background(Emerald400.copy(alpha = 0.2f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.NightsStay, contentDescription = null, tint = Emerald400)
+                            }
+                            Column {
+                                Text("Log Sleep", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                Text("Record hours slept, quality and notes", color = Slate400, fontSize = 11.sp)
+                            }
                         }
                     }
                 }
@@ -1248,6 +1460,11 @@ if (showFloatingShortcutBubble) {
         containerColor = Slate900
     )
 }
+
+ConfettiOverlay(
+    isTriggered = showQuickWorkoutConfetti,
+    onFinished = { showQuickWorkoutConfetti = false }
+)
 
     if (showLogSleepDialog) {
         AlertDialog(
@@ -2940,31 +3157,71 @@ fun ExplorerCompositeScreen(viewModel: HealthViewModel) {
             Tab(
                 selected = selectedTopTab == 0,
                 onClick = { selectedTopTab = 0 },
-                text = { Text("MuscleWiki", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                text = { Text("Exercise Explorer", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
                 unselectedContentColor = Slate400,
                 selectedContentColor = Teal400
             )
             Tab(
                 selected = selectedTopTab == 1,
                 onClick = { selectedTopTab = 1 },
-                text = { Text("AI Insights", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                text = { Text("AI Insights", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
                 unselectedContentColor = Slate400,
                 selectedContentColor = Teal400
             )
             Tab(
                 selected = selectedTopTab == 2,
                 onClick = { selectedTopTab = 2 },
-                text = { Text("Set Goals", fontWeight = FontWeight.Bold, fontSize = 13.sp) },
+                text = { Text("Logs & Charts", fontWeight = FontWeight.Bold, fontSize = 12.sp) },
                 unselectedContentColor = Slate400,
                 selectedContentColor = Teal400
             )
         }
         
-        Box(modifier = Modifier.fillMaxSize()) {
-            when (selectedTopTab) {
-                0 -> MuscleWikiScreen(viewModel)
-                1 -> InsightsTab(viewModel)
-                2 -> GoalsTab(viewModel)
+        Card(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp)
+                .shadow(8.dp, shape = RoundedCornerShape(16.dp), clip = true),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (AppThemeState.themeMode == "white") Color.White else Slate900
+            ),
+            border = BorderStroke(1.dp, if (AppThemeState.themeMode == "white") Color(0xFFE2E8F0) else Slate800)
+        ) {
+            AnimatedContent(
+                targetState = selectedTopTab,
+                transitionSpec = {
+                    (scaleIn(animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(animationSpec = tween(220)))
+                        .togetherWith(scaleOut(animationSpec = spring(dampingRatio = 0.85f)) + fadeOut(animationSpec = tween(180)))
+                },
+                modifier = Modifier.fillMaxSize()
+            ) { targetSubTab ->
+                when (targetSubTab) {
+                    0 -> MuscleWikiScreen(viewModel)
+                    1 -> InsightsTab(viewModel)
+                    2 -> LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        item {
+                            WorkoutProgressCharts(viewModel)
+                        }
+                        item {
+                            Text(
+                                text = "Activity History",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Slate50,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp)) {
+                                LogsTab(viewModel)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -3121,6 +3378,17 @@ fun SettingsDialog(
     val googleUserSignedIn by viewModel.googleUserSignedIn.collectAsStateWithLifecycle()
     val googleUserName by viewModel.googleUserName.collectAsStateWithLifecycle()
     val googleUserEmail by viewModel.googleUserEmail.collectAsStateWithLifecycle()
+
+    val goals by viewModel.goals.collectAsStateWithLifecycle()
+
+    var tempWater by remember(goals) { mutableStateOf(viewModel.getGoalValue("water_ml", 2000.0)) }
+    var tempCaffeine by remember(goals) { mutableStateOf(viewModel.getGoalValue("caffeine_mg", 400.0)) }
+    var tempCalories by remember(goals) { mutableStateOf(viewModel.getGoalValue("calories_kcal", 2000.0)) }
+    var tempProtein by remember(goals) { mutableStateOf(viewModel.getGoalValue("protein_g", 120.0)) }
+    var tempFat by remember(goals) { mutableStateOf(viewModel.getGoalValue("fat_g", 70.0)) }
+    var tempCarbs by remember(goals) { mutableStateOf(viewModel.getGoalValue("carbs_g", 250.0)) }
+    var tempExercise by remember(goals) { mutableStateOf(viewModel.getGoalValue("exercise_min", 30.0)) }
+    var tempSleep by remember(goals) { mutableStateOf(viewModel.getGoalValue("sleep_hours", 8.0)) }
 
     var ageStr by remember(currentAge) { mutableStateOf(currentAge.toString()) }
     var weightStr by remember(currentWeight) { mutableStateOf(String.format(Locale.US, "%.1f", currentWeight)) }
@@ -3380,6 +3648,90 @@ fun SettingsDialog(
                         }
                     }
                 }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Adjust Daily Targets", style = MaterialTheme.typography.titleSmall, color = Teal400, fontWeight = FontWeight.Bold)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Slate800),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                GoalAdjusterItem(
+                                    title = "Hydration Goal (ml)",
+                                    value = tempWater,
+                                    range = 500.0..5000.0,
+                                    step = 100.0,
+                                    onValueChange = { tempWater = it }
+                                )
+                                GoalAdjusterItem(
+                                    title = "Caffeine Limit (mg)",
+                                    value = tempCaffeine,
+                                    range = 0.0..1000.0,
+                                    step = 20.0,
+                                    onValueChange = { tempCaffeine = it }
+                                )
+                                GoalAdjusterItem(
+                                    title = "Exercise Target (mins)",
+                                    value = tempExercise,
+                                    range = 10.0..180.0,
+                                    step = 5.0,
+                                    onValueChange = { tempExercise = it }
+                                )
+                                GoalAdjusterItem(
+                                    title = "Sleep Target (hours)",
+                                    value = tempSleep,
+                                    range = 4.0..12.0,
+                                    step = 0.5,
+                                    onValueChange = { tempSleep = it }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Set Goals (Nutrition & Energy)", style = MaterialTheme.typography.titleSmall, color = Teal400, fontWeight = FontWeight.Bold)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Slate800),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                GoalAdjusterItem(
+                                    title = "Calories (kcal)",
+                                    value = tempCalories,
+                                    range = 1000.0..5000.0,
+                                    step = 50.0,
+                                    onValueChange = { tempCalories = it }
+                                )
+                                GoalAdjusterItem(
+                                    title = "Protein Goal (g)",
+                                    value = tempProtein,
+                                    range = 30.0..300.0,
+                                    step = 5.0,
+                                    onValueChange = { tempProtein = it }
+                                )
+                                GoalAdjusterItem(
+                                    title = "Carbs Goal (g)",
+                                    value = tempCarbs,
+                                    range = 50.0..600.0,
+                                    step = 10.0,
+                                    onValueChange = { tempCarbs = it }
+                                )
+                                GoalAdjusterItem(
+                                    title = "Fat Goal (g)",
+                                    value = tempFat,
+                                    range = 20.0..200.0,
+                                    step = 5.0,
+                                    onValueChange = { tempFat = it }
+                                )
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -3402,7 +3754,18 @@ fun SettingsDialog(
                         biceps = biceps,
                         thighs = thighs
                     )
-                    Toast.makeText(context, "Profile updated successfully!", Toast.LENGTH_SHORT).show()
+
+                    // Save daily target changes and Set Goals parameters
+                    viewModel.updateGoal("water_ml", tempWater)
+                    viewModel.updateGoal("caffeine_mg", tempCaffeine)
+                    viewModel.updateGoal("calories_kcal", tempCalories)
+                    viewModel.updateGoal("protein_g", tempProtein)
+                    viewModel.updateGoal("fat_g", tempFat)
+                    viewModel.updateGoal("carbs_g", tempCarbs)
+                    viewModel.updateGoal("exercise_min", tempExercise)
+                    viewModel.updateGoal("sleep_hours", tempSleep)
+
+                    Toast.makeText(context, "Settings & Goals updated successfully!", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Teal400),

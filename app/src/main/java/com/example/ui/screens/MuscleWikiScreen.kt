@@ -1074,6 +1074,14 @@ fun MuscleWikiScreen(viewModel: HealthViewModel) {
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
+                    Text(
+                        text = "Fields marked with * (Name, Body Part, Equipment, Level) are mandatory. Specific Instructions column is not mandatory.",
+                        color = Teal400,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+
                     if (errorMessage.isNotEmpty()) {
                         Text(errorMessage, color = Crimson500, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
