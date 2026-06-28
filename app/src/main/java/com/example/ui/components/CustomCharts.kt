@@ -11,6 +11,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -31,6 +34,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.border
+import kotlin.math.roundToInt
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.DailySummaryPoint
 
@@ -394,5 +403,392 @@ fun AnimatedGlass(
                 style = Stroke(width = 1.5.dp.toPx())
             )
         }
+    }
+}
+
+@Composable
+fun WeeklyTrendChart(
+    data: List<DailySummaryPoint>,
+    goalWater: Double,
+    goalCaffeine: Double,
+    goalExercise: Double,
+    modifier: Modifier = Modifier
+) {
+    if (data.isEmpty()) {
+        Box(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(240.dp)
+                .background(Slate900, RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("No trend data available yet.", color = Slate400, fontSize = 14.sp)
+        }
+        return
+    }
+
+    // Animation progress for smooth path loading
+    var animationTarget by remember { androidx.compose.runtime.mutableStateOf(0f) }
+    androidx.compose.runtime.LaunchedEffect(data) {
+        animationTarget = 0f
+        kotlinx.coroutines.delay(50)
+        animationTarget = 1f
+    }
+    val animProgress by animateFloatAsState(
+        targetValue = animationTarget,
+        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+        label = "trend_lines_anim"
+    )
+
+    // Selection index for tap-to-inspect interaction
+    var selectedIndex by remember { androidx.compose.runtime.mutableStateOf(-1) }
+
+    // Colors
+    val waterColor = Color(0xFF2196F3)   // Fluid Blue
+    val caffeineColor = Color(0xFF6F4E37) // Coffee Bean Brown
+    val exerciseColor = Color(0xFFB7410E) // Rust Orange
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = Slate900),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // Header Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "7-Day Health Trends",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Interactive Trend Lines (Tap to Inspect)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Slate400
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Beautiful interactive legend
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LegendItem(label = "Water", color = waterColor, icon = "💧")
+                LegendItem(label = "Caffeine", color = caffeineColor, icon = "☕")
+                LegendItem(label = "Exercise", color = exerciseColor, icon = "🏃")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // If a day is selected, display a beautiful summary panel
+            if (selectedIndex in data.indices) {
+                val point = data[selectedIndex]
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                        .border(1.dp, Slate700, RoundedCornerShape(8.dp)),
+                    colors = CardDefaults.cardColors(containerColor = Slate950),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Inspection: ${point.dayLabel}",
+                                fontWeight = FontWeight.Bold,
+                                color = Teal400,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text(
+                                    text = "💧 ${point.waterMl.toInt()} ml / ${goalWater.toInt()}ml",
+                                    color = Color.White,
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = "☕ ${point.caffeineMg.toInt()} mg / ${goalCaffeine.toInt()}mg",
+                                    color = Color.White,
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = "🏃 ${point.exerciseMin.toInt()} m / ${goalExercise.toInt()}m",
+                                    color = Color.White,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                        Text(
+                            text = "Clear",
+                            color = Slate400,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clickable { selectedIndex = -1 }
+                                .padding(4.dp)
+                        )
+                    }
+                }
+            }
+
+            // The Chart Canvas
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .background(Slate950, RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 16.dp)
+            ) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(data) {
+                            detectTapGestures { offset ->
+                                val width = size.width
+                                val stepX = width / 6f
+                                val index = (offset.x / stepX).roundToInt().coerceIn(0, 6)
+                                selectedIndex = index
+                            }
+                        }
+                ) {
+                    val width = size.width
+                    val height = size.height
+
+                    // Leave 20px at the bottom for day labels
+                    val labelAreaHeight = 24.dp.toPx()
+                    val chartHeight = height - labelAreaHeight
+
+                    // 1. Draw Grid Lines
+                    val gridLines = 3
+                    val gridSpacing = chartHeight / gridLines
+                    for (i in 0..gridLines) {
+                        val y = i * gridSpacing
+                        drawLine(
+                            color = Slate800,
+                            start = Offset(0f, y),
+                            end = Offset(width, y),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                        )
+                    }
+
+                    // 2. Compute max values for normalisation/scaling
+                    val maxWater = data.maxOf { it.waterMl }.coerceAtLeast(goalWater).coerceAtLeast(1.0)
+                    val maxCaffeine = data.maxOf { it.caffeineMg }.coerceAtLeast(goalCaffeine).coerceAtLeast(1.0)
+                    val maxExercise = data.maxOf { it.exerciseMin }.coerceAtLeast(goalExercise).coerceAtLeast(1.0)
+
+                    val stepX = width / 6f
+
+                    // Path objects
+                    val waterPath = Path()
+                    val waterAreaPath = Path()
+
+                    val caffeinePath = Path()
+                    val caffeineAreaPath = Path()
+
+                    val exercisePath = Path()
+                    val exerciseAreaPath = Path()
+
+                    data.forEachIndexed { index, point ->
+                        val x = index * stepX
+                        
+                        // Y positions scaled dynamically
+                        val yWater = chartHeight - ((point.waterMl / maxWater) * chartHeight * animProgress).toFloat().coerceIn(0f, chartHeight)
+                        val yCaffeine = chartHeight - ((point.caffeineMg / maxCaffeine) * chartHeight * animProgress).toFloat().coerceIn(0f, chartHeight)
+                        val yExercise = chartHeight - ((point.exerciseMin / maxExercise) * chartHeight * animProgress).toFloat().coerceIn(0f, chartHeight)
+
+                        // --- Water Paths ---
+                        if (index == 0) {
+                            waterPath.moveTo(x, yWater)
+                            waterAreaPath.moveTo(x, chartHeight)
+                            waterAreaPath.lineTo(x, yWater)
+
+                            caffeinePath.moveTo(x, yCaffeine)
+                            caffeineAreaPath.moveTo(x, chartHeight)
+                            caffeineAreaPath.lineTo(x, yCaffeine)
+
+                            exercisePath.moveTo(x, yExercise)
+                            exerciseAreaPath.moveTo(x, chartHeight)
+                            exerciseAreaPath.lineTo(x, yExercise)
+                        } else {
+                            waterPath.lineTo(x, yWater)
+                            waterAreaPath.lineTo(x, yWater)
+
+                            caffeinePath.lineTo(x, yCaffeine)
+                            caffeineAreaPath.lineTo(x, yCaffeine)
+
+                            exercisePath.lineTo(x, yExercise)
+                            exerciseAreaPath.lineTo(x, yExercise)
+                        }
+
+                        if (index == data.size - 1) {
+                            waterAreaPath.lineTo(x, chartHeight)
+                            waterAreaPath.close()
+
+                            caffeineAreaPath.lineTo(x, chartHeight)
+                            caffeineAreaPath.close()
+
+                            exerciseAreaPath.lineTo(x, chartHeight)
+                            exerciseAreaPath.close()
+                        }
+                    }
+
+                    // Draw Areas with gradients
+                    if (data.isNotEmpty()) {
+                        drawPath(
+                            path = waterAreaPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(waterColor.copy(alpha = 0.15f), Color.Transparent)
+                            )
+                        )
+                        drawPath(
+                            path = caffeineAreaPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(caffeineColor.copy(alpha = 0.10f), Color.Transparent)
+                            )
+                        )
+                        drawPath(
+                            path = exerciseAreaPath,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(exerciseColor.copy(alpha = 0.15f), Color.Transparent)
+                            )
+                        )
+
+                        // Draw lines
+                        drawPath(
+                            path = waterPath,
+                            color = waterColor,
+                            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                        drawPath(
+                            path = caffeinePath,
+                            color = caffeineColor,
+                            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                        drawPath(
+                            path = exercisePath,
+                            color = exerciseColor,
+                            style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
+
+                    // Draw dots on vertex points & vertical selection indicator
+                    data.forEachIndexed { index, point ->
+                        val x = index * stepX
+                        val yWater = chartHeight - ((point.waterMl / maxWater) * chartHeight * animProgress).toFloat().coerceIn(0f, chartHeight)
+                        val yCaffeine = chartHeight - ((point.caffeineMg / maxCaffeine) * chartHeight * animProgress).toFloat().coerceIn(0f, chartHeight)
+                        val yExercise = chartHeight - ((point.exerciseMin / maxExercise) * chartHeight * animProgress).toFloat().coerceIn(0f, chartHeight)
+
+                        // If index is selected, draw a vertical dash line
+                        if (selectedIndex == index) {
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.35f),
+                                start = Offset(x, 0f),
+                                end = Offset(x, chartHeight),
+                                strokeWidth = 1.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 0f)
+                            )
+                        }
+
+                        // Draw individual dots on paths
+                        drawCircle(
+                            color = waterColor,
+                            radius = if (selectedIndex == index) 5.dp.toPx() else 3.5.dp.toPx(),
+                            center = Offset(x, yWater)
+                        )
+                        drawCircle(
+                            color = caffeineColor,
+                            radius = if (selectedIndex == index) 5.dp.toPx() else 3.5.dp.toPx(),
+                            center = Offset(x, yCaffeine)
+                        )
+                        drawCircle(
+                            color = exerciseColor,
+                            radius = if (selectedIndex == index) 5.dp.toPx() else 3.5.dp.toPx(),
+                            center = Offset(x, yExercise)
+                        )
+
+                        // Draw white rings around selected dots for extra pop
+                        if (selectedIndex == index) {
+                            drawCircle(
+                                color = Color.White,
+                                radius = 6.dp.toPx(),
+                                center = Offset(x, yWater),
+                                style = Stroke(width = 1.5.dp.toPx())
+                            )
+                            drawCircle(
+                                color = Color.White,
+                                radius = 6.dp.toPx(),
+                                center = Offset(x, yCaffeine),
+                                style = Stroke(width = 1.5.dp.toPx())
+                            )
+                            drawCircle(
+                                color = Color.White,
+                                radius = 6.dp.toPx(),
+                                center = Offset(x, yExercise),
+                                style = Stroke(width = 1.5.dp.toPx())
+                            )
+                        }
+
+                        // Draw text labels for days at bottom
+                        drawContext.canvas.nativeCanvas.apply {
+                            val paint = android.graphics.Paint().apply {
+                                color = if (selectedIndex == index) android.graphics.Color.parseColor("#FACC15") else android.graphics.Color.parseColor("#94A3B8")
+                                textSize = 24f
+                                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                                textAlign = android.graphics.Paint.Align.CENTER
+                            }
+                            drawText(
+                                point.dayLabel,
+                                x,
+                                height - 2f,
+                                paint
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LegendItem(label: String, color: Color, icon: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .background(color, CircleShape)
+        )
+        Text(
+            text = "$icon $label",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = Slate200
+        )
     }
 }

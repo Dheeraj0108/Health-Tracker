@@ -302,6 +302,7 @@ fun DashboardTab(viewModel: HealthViewModel) {
     var showExercisePopup by remember { mutableStateOf(false) }
     var showCoffeePopup by remember { mutableStateOf(false) }
     var showFloatingShortcutBubble by remember { mutableStateOf(false) }
+    var showEditTargetsDialog by remember { mutableStateOf(false) }
 
     val exerciseSpeechLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -371,6 +372,27 @@ fun DashboardTab(viewModel: HealthViewModel) {
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .clickable { showEditTargetsDialog = true }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "Edit Targets",
+                                tint = Teal400,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Adjust Daily Targets",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Teal400,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                     Box(
                         modifier = Modifier
@@ -411,13 +433,13 @@ fun DashboardTab(viewModel: HealthViewModel) {
                         Text("Water", style = MaterialTheme.typography.labelSmall, color = Slate400, maxLines = 1)
                         com.example.ui.components.FluidDonutProgress(
                             progress = if (goalWater > 0) todayWater.toFloat() / goalWater else 0f,
-                            color = Teal400,
+                            color = Color(0xFF2196F3),
                             size = 56.dp
                         ) {
                             Icon(
                                 imageVector = Icons.Default.LocalDrink,
                                 contentDescription = "Water",
-                                tint = Teal400,
+                                tint = Color(0xFF2196F3),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -452,13 +474,13 @@ fun DashboardTab(viewModel: HealthViewModel) {
                         Text("Exercise", style = MaterialTheme.typography.labelSmall, color = Slate400, maxLines = 1)
                         com.example.ui.components.FluidDonutProgress(
                             progress = if (goalExercise > 0) todayExercise.toFloat() / goalExercise else 0f,
-                            color = Indigo400,
+                            color = Color(0xFFB7410E),
                             size = 56.dp
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DirectionsRun,
                                 contentDescription = "Exercise",
-                                tint = Indigo400,
+                                tint = Color(0xFFB7410E),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -488,13 +510,13 @@ fun DashboardTab(viewModel: HealthViewModel) {
                         Text("Caffeine", style = MaterialTheme.typography.labelSmall, color = Slate400, maxLines = 1)
                         com.example.ui.components.FluidDonutProgress(
                             progress = if (goalCaffeine > 0) todayCaffeine.toFloat() / goalCaffeine else 0f,
-                            color = Amber400,
+                            color = Color(0xFF6F4E37),
                             size = 56.dp
                         ) {
                             Icon(
                                 imageVector = Icons.Default.LocalCafe,
                                 contentDescription = "Caffeine",
-                                tint = Amber400,
+                                tint = Color(0xFF6F4E37),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -524,13 +546,13 @@ fun DashboardTab(viewModel: HealthViewModel) {
                         Text("Sleep", style = MaterialTheme.typography.labelSmall, color = Slate400, maxLines = 1)
                         com.example.ui.components.FluidDonutProgress(
                             progress = if (goalSleep > 0) (todaySleep / goalSleep).toFloat() else 0f,
-                            color = Emerald400,
+                            color = Color(0xFF9575CD),
                             size = 56.dp
                         ) {
                             Icon(
                                 imageVector = Icons.Default.NightsStay,
                                 contentDescription = "Sleep",
-                                tint = Emerald400,
+                                tint = Color(0xFF9575CD),
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -636,12 +658,14 @@ fun DashboardTab(viewModel: HealthViewModel) {
             )
         }
 
-        // Monthly Fitness Goals Calendar
+        // 7-day trend line for water intake, caffeine consumption, and exercise duration
         item {
-            val exerciseLogs by viewModel.exerciseLogs.collectAsStateWithLifecycle()
-            FitnessCalendar(
-                exerciseLogs = exerciseLogs,
-                dailyGoalMin = goalExercise.toDouble(),
+            val weeklyChartData = viewModel.getWeeklyChartData()
+            com.example.ui.components.WeeklyTrendChart(
+                data = weeklyChartData,
+                goalWater = goalWater.toDouble(),
+                goalCaffeine = goalCaffeine.toDouble(),
+                goalExercise = goalExercise.toDouble(),
                 modifier = Modifier.padding(vertical = 4.dp)
             )
         }
@@ -1411,6 +1435,68 @@ if (showFloatingShortcutBubble) {
                 }
             },
             containerColor = Slate900
+        )
+    }
+
+    if (showEditTargetsDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditTargetsDialog = false },
+            title = {
+                Text(
+                    text = "Adjust Daily Targets",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+            },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    GoalAdjusterItem(
+                        title = "Hydration Goal (ml)",
+                        value = goalWater.toDouble(),
+                        range = 500.0..5000.0,
+                        step = 100.0,
+                        onValueChange = { viewModel.updateGoal("water_ml", it) }
+                    )
+
+                    GoalAdjusterItem(
+                        title = "Caffeine Limit (mg)",
+                        value = goalCaffeine.toDouble(),
+                        range = 0.0..1000.0,
+                        step = 20.0,
+                        onValueChange = { viewModel.updateGoal("caffeine_mg", it) }
+                    )
+
+                    GoalAdjusterItem(
+                        title = "Exercise Target (mins)",
+                        value = goalExercise.toDouble(),
+                        range = 10.0..180.0,
+                        step = 5.0,
+                        onValueChange = { viewModel.updateGoal("exercise_min", it) }
+                    )
+
+                    GoalAdjusterItem(
+                        title = "Sleep Target (hours)",
+                        value = goalSleep,
+                        range = 4.0..12.0,
+                        step = 0.5,
+                        onValueChange = { viewModel.updateGoal("sleep_hours", it) }
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showEditTargetsDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Teal500)
+                ) {
+                    Text("Save & Close", color = Slate950, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = Slate900,
+            shape = RoundedCornerShape(16.dp)
         )
     }
 }
