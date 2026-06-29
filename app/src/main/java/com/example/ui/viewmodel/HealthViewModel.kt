@@ -556,7 +556,21 @@ class HealthViewModel(private val repository: HealthRepository, private val cont
         bicepsCm: Double?,
         thighsCm: Double?,
         imagePath: String?,
-        notes: String? = null
+        notes: String? = null,
+        // New metric fields
+        heightCm: Double? = null,
+        neckCm: Double? = null,
+        shoulderCm: Double? = null,
+        leftBicepCm: Double? = null,
+        rightBicepCm: Double? = null,
+        leftForearmCm: Double? = null,
+        rightForearmCm: Double? = null,
+        lowerAbsCm: Double? = null,
+        upperAbsCm: Double? = null,
+        leftThighCm: Double? = null,
+        rightThighCm: Double? = null,
+        leftCalfCm: Double? = null,
+        rightCalfCm: Double? = null
     ) {
         viewModelScope.launch {
             repository.insertBodyLog(
@@ -568,7 +582,20 @@ class HealthViewModel(private val repository: HealthRepository, private val cont
                     bicepsCm = bicepsCm,
                     thighsCm = thighsCm,
                     imagePath = imagePath,
-                    notes = notes
+                    notes = notes,
+                    heightCm = heightCm,
+                    neckCm = neckCm,
+                    shoulderCm = shoulderCm,
+                    leftBicepCm = leftBicepCm,
+                    rightBicepCm = rightBicepCm,
+                    leftForearmCm = leftForearmCm,
+                    rightForearmCm = rightForearmCm,
+                    lowerAbsCm = lowerAbsCm,
+                    upperAbsCm = upperAbsCm,
+                    leftThighCm = leftThighCm,
+                    rightThighCm = rightThighCm,
+                    leftCalfCm = leftCalfCm,
+                    rightCalfCm = rightCalfCm
                 )
             )
         }
@@ -584,6 +611,19 @@ class HealthViewModel(private val repository: HealthRepository, private val cont
         viewModelScope.launch {
             repository.insertRoutine(
                 ExerciseRoutine(
+                    name = name,
+                    description = description,
+                    exercisesListJson = exercisesListJson
+                )
+            )
+        }
+    }
+
+    fun updateRoutine(id: Int, name: String, description: String, exercisesListJson: String) {
+        viewModelScope.launch {
+            repository.insertRoutine(
+                ExerciseRoutine(
+                    id = id,
                     name = name,
                     description = description,
                     exercisesListJson = exercisesListJson

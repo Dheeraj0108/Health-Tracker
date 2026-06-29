@@ -67,7 +67,21 @@ data class BodyLog(
     val thighsCm: Double?,
     val imagePath: String?, // File path or content URI for body transformation photo
     val notes: String? = null,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    // New physical tracking fields
+    val heightCm: Double? = null,
+    val neckCm: Double? = null,
+    val shoulderCm: Double? = null,
+    val leftBicepCm: Double? = null,
+    val rightBicepCm: Double? = null,
+    val leftForearmCm: Double? = null,
+    val rightForearmCm: Double? = null,
+    val lowerAbsCm: Double? = null,
+    val upperAbsCm: Double? = null,
+    val leftThighCm: Double? = null,
+    val rightThighCm: Double? = null,
+    val leftCalfCm: Double? = null,
+    val rightCalfCm: Double? = null
 )
 
 @Entity(tableName = "exercise_routines")

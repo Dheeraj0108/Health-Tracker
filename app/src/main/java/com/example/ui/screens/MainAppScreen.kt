@@ -2354,6 +2354,7 @@ fun NutriSnapTab(viewModel: HealthViewModel) {
     val result by viewModel.analysisResult.collectAsStateWithLifecycle()
 
     var foodDescriptionInput by remember { mutableStateOf("") }
+    var foodItemsList by remember { mutableStateOf(listOf("")) }
     var selectedImagePathOrRes by remember { mutableStateOf<String?>(null) }
     var selectedBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
@@ -2366,6 +2367,7 @@ fun NutriSnapTab(viewModel: HealthViewModel) {
             val spokenText = results?.getOrNull(0) ?: ""
             if (spokenText.isNotEmpty()) {
                 foodDescriptionInput = spokenText
+                foodItemsList = listOf(spokenText)
             }
         }
     }
@@ -2386,6 +2388,7 @@ fun NutriSnapTab(viewModel: HealthViewModel) {
             selectedBitmap = bitmap
             selectedImagePathOrRes = null // Clear resource-based selection
             foodDescriptionInput = "Captured Meal photo"
+            foodItemsList = listOf("Captured Meal photo")
             Toast.makeText(context, "Photo Captured!", Toast.LENGTH_SHORT).show()
         }
     }
@@ -2538,7 +2541,11 @@ fun NutriSnapTab(viewModel: HealthViewModel) {
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Button(
-                                onClick = { viewModel.cancelFoodAnalysis() },
+                                onClick = {
+                                    viewModel.cancelFoodAnalysis()
+                                    foodItemsList = listOf("")
+                                    foodDescriptionInput = ""
+                                },
                                 colors = ButtonDefaults.buttonColors(containerColor = Slate800),
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -2550,6 +2557,7 @@ fun NutriSnapTab(viewModel: HealthViewModel) {
                                     selectedBitmap = null
                                     selectedImagePathOrRes = null
                                     foodDescriptionInput = ""
+                                    foodItemsList = listOf("")
                                     Toast.makeText(context, "Logged Successfully!", Toast.LENGTH_SHORT).show()
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Teal400),
@@ -2686,37 +2694,89 @@ fun NutriSnapTab(viewModel: HealthViewModel) {
                             fontSize = 14.sp
                         )
 
-                        OutlinedTextField(
-                            value = foodDescriptionInput,
-                            onValueChange = { foodDescriptionInput = it },
-                            placeholder = { Text("e.g., Avocado Sourdough toast with poached egg", color = Slate400) },
-                            trailingIcon = {
-                                IconButton(
-                                    onClick = {
-                                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Describe what you ate...")
-                                        }
-                                        try {
-                                            foodSpeechLauncher.launch(intent)
-                                        } catch (e: Exception) {
-                                            Toast.makeText(context, "Voice input not supported", Toast.LENGTH_SHORT).show()
-                                        }
-                                    },
-                                    modifier = Modifier.testTag("voice_input_food_btn")
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            foodItemsList.forEachIndexed { index, itemText ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Default.Mic, contentDescription = "Voice input", tint = Teal400)
+                                    OutlinedTextField(
+                                        value = itemText,
+                                        onValueChange = { newValue ->
+                                            val newList = foodItemsList.toMutableList()
+                                            newList[index] = newValue
+                                            foodItemsList = newList
+                                            foodDescriptionInput = newList.filter { it.isNotBlank() }.joinToString(", ")
+                                        },
+                                        placeholder = { Text("e.g., Item ${index + 1} (e.g., Avocado Toast)", color = Slate400, fontSize = 12.sp) },
+                                        modifier = Modifier.weight(1f).testTag("food_desc_input_$index"),
+                                        singleLine = true,
+                                        colors = OutlinedTextFieldDefaults.colors(
+                                            focusedTextColor = Slate50,
+                                            unfocusedTextColor = Slate50,
+                                            focusedBorderColor = Teal400,
+                                            focusedLabelColor = Teal400
+                                        ),
+                                        trailingIcon = {
+                                            if (index == 0) {
+                                                IconButton(
+                                                    onClick = {
+                                                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                                                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Describe what you ate...")
+                                                        }
+                                                        try {
+                                                            foodSpeechLauncher.launch(intent)
+                                                        } catch (e: Exception) {
+                                                            Toast.makeText(context, "Voice input not supported", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    },
+                                                    modifier = Modifier.testTag("voice_input_food_btn")
+                                                ) {
+                                                    Icon(Icons.Default.Mic, contentDescription = "Voice input", tint = Teal400)
+                                                }
+                                            }
+                                        }
+                                    )
+
+                                    if (foodItemsList.size > 1) {
+                                        IconButton(
+                                            onClick = {
+                                                val newList = foodItemsList.toMutableList()
+                                                newList.removeAt(index)
+                                                foodItemsList = newList
+                                                foodDescriptionInput = newList.filter { it.isNotBlank() }.joinToString(", ")
+                                            },
+                                            modifier = Modifier.size(36.dp).testTag("remove_food_row_btn_$index")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.RemoveCircleOutline,
+                                                contentDescription = "Remove item",
+                                                tint = Crimson400
+                                            )
+                                        }
+                                    }
                                 }
-                            },
-                            modifier = Modifier.fillMaxWidth().testTag("food_desc_input"),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Slate50,
-                                unfocusedTextColor = Slate50,
-                                focusedBorderColor = Teal400,
-                                focusedLabelColor = Teal400
-                            )
-                        )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                TextButton(
+                                    onClick = {
+                                        foodItemsList = foodItemsList + ""
+                                    },
+                                    modifier = Modifier.testTag("add_food_row_btn")
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, tint = Teal400, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Add Food Item", color = Teal400, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
@@ -3644,48 +3704,6 @@ fun SettingsDialog(
                                     selectedItem = volumeUnit,
                                     onItemSelected = { viewModel.updateVolumeUnit(it) },
                                     labelProvider = { if (it == "ml") "Milliliters (ml)" else "Liters (L)" }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Adjust Daily Targets", style = MaterialTheme.typography.titleSmall, color = Teal400, fontWeight = FontWeight.Bold)
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = Slate800),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                GoalAdjusterItem(
-                                    title = "Hydration Goal (ml)",
-                                    value = tempWater,
-                                    range = 500.0..5000.0,
-                                    step = 100.0,
-                                    onValueChange = { tempWater = it }
-                                )
-                                GoalAdjusterItem(
-                                    title = "Caffeine Limit (mg)",
-                                    value = tempCaffeine,
-                                    range = 0.0..1000.0,
-                                    step = 20.0,
-                                    onValueChange = { tempCaffeine = it }
-                                )
-                                GoalAdjusterItem(
-                                    title = "Exercise Target (mins)",
-                                    value = tempExercise,
-                                    range = 10.0..180.0,
-                                    step = 5.0,
-                                    onValueChange = { tempExercise = it }
-                                )
-                                GoalAdjusterItem(
-                                    title = "Sleep Target (hours)",
-                                    value = tempSleep,
-                                    range = 4.0..12.0,
-                                    step = 0.5,
-                                    onValueChange = { tempSleep = it }
                                 )
                             }
                         }

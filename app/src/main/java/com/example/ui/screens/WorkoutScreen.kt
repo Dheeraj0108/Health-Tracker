@@ -38,6 +38,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import com.example.ui.components.DumbbellIcon
+import com.example.ui.components.BarbellIcon
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -229,57 +231,59 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
     )
 
     if (activeSessionName != null && !isWorkoutMinimized) {
-        // --- ACTIVE WORKOUT SESSION SHEET VIEW ---
+        // Local active workout states
+        var activeSessionSearchQuery by remember { mutableStateOf("") }
+        var addExerciseSearchQuery by remember { mutableStateOf("") }
+        val expandedMuscleGroups = remember { mutableStateMapOf<String, Boolean>() }
+        val activeSetRestTimers = remember { mutableStateMapOf<String, Float>() }
+        val activeSetRestTotals = remember { mutableStateMapOf<String, Float>() }
+        var showCustomExercisePopupLocal by remember { mutableStateOf(false) }
+
+        // Coroutine for Inline rest timer countdown
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(100L)
+                activeSetRestTimers.keys.toList().forEach { setId ->
+                    val cur = activeSetRestTimers[setId] ?: 0f
+                    if (cur > 0f) {
+                        activeSetRestTimers[setId] = cur - 0.1f
+                    } else {
+                        activeSetRestTimers.remove(setId)
+                        activeSetRestTotals.remove(setId)
+                    }
+                }
+            }
+        }
+
+        val defaultExerciseCategories = remember {
+            mapOf(
+                "Arms" to listOf("Barbell Bicep Curl", "Bicep Curl (Dumbbell)", "Concentration Curl", "Front Raises", "Hammer Curls", "Preacher Curl", "Reverse Pec Deck", "Skull Crushers", "Tricep Overhead Extension", "Triceps Rope Pushdown"),
+                "Back" to listOf("Barbell Row", "Chin-ups", "Face Pulls", "Hyperextensions", "Lat Pulldown", "Lat Pullover", "Pull-ups", "Seated Cable Row"),
+                "Cardio" to listOf("Elliptical Cardio", "Treadmill Running"),
+                "Chest" to listOf("Barbell Bench Press", "Cable Crossover", "Chest Dips", "Chest Fly (Pec Deck)", "Decline Bench Press", "Dumbbell Flyes", "Incline Dumbbell Press", "Push-ups"),
+                "Core" to listOf("Abs Crunches", "Plank", "Leg Raises", "Russian Twists"),
+                "Legs" to listOf("Barbell Squats", "Calf Raises", "Leg Extensions", "Leg Press", "Lying Leg Curls", "Romanian Deadlift")
+            )
+        }
+
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
-                TopAppBar(
-                    title = {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Slate950)
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Top-Left Corner: Timer + 'Finish' button
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = activeSessionName ?: "Workout",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
-                            )
-                            
-                            Box {
-                                IconButton(onClick = { showTopBarMenu = true }) {
-                                    Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = Slate300)
-                                }
-                                DropdownMenu(
-                                    expanded = showTopBarMenu,
-                                    onDismissRequest = { showTopBarMenu = false },
-                                    modifier = Modifier.background(Slate900)
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text("Edit Workout Name", color = Color.White) },
-                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Teal400) },
-                                        onClick = { showRenameDialog = true; showTopBarMenu = false }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Adjust Session Time", color = Color.White) },
-                                        leadingIcon = { Icon(Icons.Default.AccessTime, contentDescription = null, tint = Teal400) },
-                                        onClick = { showTimeAdjustDialog = true; showTopBarMenu = false }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Add Custom Text Note", color = Color.White) },
-                                        leadingIcon = { Icon(Icons.Default.Notes, contentDescription = null, tint = Teal400) },
-                                        onClick = { showNoteDialog = true; showTopBarMenu = false }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("Rest Timer Settings", color = Color.White) },
-                                        leadingIcon = { Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = Teal400) },
-                                        onClick = { showRestSettingsDialog = true; showTopBarMenu = false }
-                                    )
-                                }
-                            }
-                            
-                            Spacer(modifier = Modifier.width(8.dp))
-                            
                             Icon(
                                 imageVector = Icons.Default.Timer,
                                 contentDescription = null,
@@ -294,16 +298,8 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                                 color = Teal400
                             )
                         }
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = { isWorkoutMinimized = true }) {
-                            Icon(Icons.Default.Minimize, contentDescription = "Minimize Context", tint = Slate300)
-                        }
-                    },
-                    actions = {
                         Button(
                             onClick = {
-                                // Save & Finish Workout
                                 if (activeExercises.isEmpty()) {
                                     Toast.makeText(context, "Add at least one exercise to finish!", Toast.LENGTH_SHORT).show()
                                     return@Button
@@ -331,15 +327,68 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                                 restTimeRemaining = null
                                 isWorkoutMinimized = false
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = Amber400),
+                            colors = ButtonDefaults.buttonColors(containerColor = Teal400),
                             shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.padding(end = 8.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            modifier = Modifier.height(32.dp)
                         ) {
                             Text("Finish", color = Slate950, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Slate950)
-                )
+                    }
+
+                    // Top-Right Corner: Session Title + 3-vertical-dots menu
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        Text(
+                            text = activeSessionName ?: "Workout",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        
+                        Box {
+                            var showTopBarMenuLocal by remember { mutableStateOf(false) }
+                            IconButton(
+                                onClick = { showTopBarMenuLocal = true },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = Slate300)
+                            }
+                            DropdownMenu(
+                                expanded = showTopBarMenuLocal,
+                                onDismissRequest = { showTopBarMenuLocal = false },
+                                modifier = Modifier.background(Slate900)
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Edit Workout Name", color = Color.White) },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Teal400) },
+                                    onClick = { showRenameDialog = true; showTopBarMenuLocal = false }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Adjust Session Time", color = Color.White) },
+                                    leadingIcon = { Icon(Icons.Default.AccessTime, contentDescription = null, tint = Teal400) },
+                                    onClick = { showTimeAdjustDialog = true; showTopBarMenuLocal = false }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Add Custom Text Notes", color = Color.White) },
+                                    leadingIcon = { Icon(Icons.Default.Notes, contentDescription = null, tint = Teal400) },
+                                    onClick = { showNoteDialog = true; showTopBarMenuLocal = false }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Reset Time Settings", color = Color.White) },
+                                    leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null, tint = Teal400) },
+                                    onClick = { stopwatchSeconds = 0; showTopBarMenuLocal = false }
+                                )
+                            }
+                        }
+                    }
+                }
             }
         ) { padding ->
             Box(
@@ -348,153 +397,752 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                     .background(Slate950)
                     .padding(padding)
             ) {
+                // Main scrolling workout stack
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Session Heading & Notes block
+                    // Line 2: Empty space spacer
                     item {
-                        Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                            Text(
-                                text = activeSessionName ?: "Workout Session",
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            OutlinedTextField(
-                                value = activeSessionNotes,
-                                onValueChange = { activeSessionNotes = it },
-                                placeholder = { Text("Workout Notes (e.g. Felt strong on Bench today!)", color = Slate500, fontSize = 12.sp) },
-                                modifier = Modifier.fillMaxWidth(),
-                                maxLines = 2,
-                                textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 13.sp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Teal400,
-                                    unfocusedBorderColor = Slate800,
-                                    focusedContainerColor = Slate900,
-                                    unfocusedContainerColor = Slate900
-                                )
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(16.dp))
                     }
 
-                    // Render Active Exercises
-                    itemsIndexed(activeExercises) { index, exercise ->
-                        ActiveExerciseCard(
-                            exercise = exercise,
-                            onAddSet = {
-                                val prevSet = exercise.sets.lastOrNull()
-                                exercise.sets.add(
-                                    ActiveSet(
-                                        weight = prevSet?.weight ?: "",
-                                        reps = prevSet?.reps ?: "",
-                                        type = "Normal"
-                                    )
-                                )
-                            },
-                            onRemoveSet = { setIndex ->
-                                if (exercise.sets.size > setIndex) {
-                                    exercise.sets.removeAt(setIndex)
-                                }
-                            },
-                            onRemoveExercise = {
-                                activeExercises.removeAt(index)
-                            },
-                            onSetCheckedChange = { setIdx, isChecked ->
-                                val set = exercise.sets[setIdx]
-                                set.isCompleted = isChecked
-                                if (isChecked) {
-                                    val weightVal = set.weight.toDoubleOrNull() ?: 0.0
-                                    val repsVal = set.reps.toIntOrNull() ?: 0
-                                    if (weightVal > 0.0 || repsVal > 0) {
-                                        viewModel.checkAndLogPersonalRecord(
-                                            exerciseName = exercise.name,
-                                            weight = weightVal,
-                                            reps = repsVal,
-                                            onNewRecord = { pr ->
-                                                activePrRecord = pr
-                                                showPrConfetti = true
-                                            }
-                                        )
-                                    }
-                                    activeRestingSetIndex = Pair(exercise.name, setIdx)
-                                    restTimeRemaining = restTimeTotal
-                                } else {
-                                    if (activeRestingSetIndex == Pair(exercise.name, setIdx)) {
-                                        activeRestingSetIndex = null
-                                        restTimeRemaining = null
-                                    }
-                                }
-                            },
-                            onSetTypeChange = { setIdx, newType ->
-                                val set = exercise.sets[setIdx]
-                                set.type = newType
-                            },
-                            activeRestingSetIndex = activeRestingSetIndex,
-                            restTimeRemaining = restTimeRemaining,
-                            restTimeTotal = restTimeTotal,
-                            onSkipRest = {
-                                restTimeRemaining = null
-                                activeRestingSetIndex = null
-                            }
+                    // Line 3: Active Workout Name in Bold Typography
+                    item {
+                        Text(
+                            text = activeSessionName ?: "Active Workout Session",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White
                         )
                     }
 
-                    // Footer Buttons
+                    // Line 4: Session Search Bar
                     item {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
-                        ) {
-                            Button(
-                                onClick = { showAddExerciseSelector = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Slate900),
-                                border = BorderStroke(1.dp, Teal400),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = null, tint = Teal400)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Add Exercises", color = Teal400, fontWeight = FontWeight.Bold)
-                            }
+                        OutlinedTextField(
+                            value = activeSessionSearchQuery,
+                            onValueChange = { activeSessionSearchQuery = it },
+                            placeholder = { Text("Filter exercises/sets...", color = Slate500, fontSize = 12.sp) },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Slate400, modifier = Modifier.size(18.dp)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 13.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Teal400,
+                                unfocusedBorderColor = Slate800,
+                                focusedContainerColor = Slate900,
+                                unfocusedContainerColor = Slate900
+                            )
+                        )
+                    }
 
-                            Button(
-                                onClick = { showCancelConfirmation = true },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = Slate950),
-                                border = BorderStroke(1.dp, Crimson500.copy(alpha = 0.4f)),
-                                shape = RoundedCornerShape(12.dp)
+                    // Line 5: Live Stack
+                    val filteredActiveExercises = activeExercises.filter {
+                        it.name.contains(activeSessionSearchQuery, ignoreCase = true)
+                    }
+
+                    if (filteredActiveExercises.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(Icons.Default.Delete, contentDescription = null, tint = Crimson500)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Cancel Workout", color = Crimson500, fontWeight = FontWeight.Bold)
+                                Text("No matching exercises in session.", color = Slate500, fontSize = 13.sp)
+                            }
+                        }
+                    } else {
+                        itemsIndexed(filteredActiveExercises) { index, exercise ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Slate900),
+                                border = BorderStroke(1.dp, Slate800)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    // Row Alignment: Exercise Name aligned Right; 3-dots aligned Left
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        // Left Aligned: 3-vertical-dots overlay
+                                        Box {
+                                            var showExerciseMenu by remember { mutableStateOf(false) }
+                                            var showNoteInput by remember { mutableStateOf(false) }
+
+                                            IconButton(onClick = { showExerciseMenu = true }, modifier = Modifier.size(32.dp)) {
+                                                Icon(Icons.Default.MoreVert, contentDescription = "Exercise Options", tint = Slate400)
+                                            }
+                                            DropdownMenu(
+                                                expanded = showExerciseMenu,
+                                                onDismissRequest = { showExerciseMenu = false },
+                                                modifier = Modifier.background(Slate900)
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Exercise Note", color = Color.White) },
+                                                    onClick = {
+                                                        showNoteInput = !showNoteInput
+                                                        showExerciseMenu = false
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text("Warmup Sets", color = Color.White) },
+                                                    onClick = {
+                                                        exercise.sets.forEach { it.type = "Warm-up" }
+                                                        showExerciseMenu = false
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text("Remove Exercise", color = Color.White) },
+                                                    onClick = {
+                                                        activeExercises.remove(exercise)
+                                                        showExerciseMenu = false
+                                                    }
+                                                )
+                                            }
+
+                                            // Note input if triggered or has note
+                                            if (showNoteInput || !exercise.customNote.isNullOrEmpty()) {
+                                                LaunchedEffect(showNoteInput) {
+                                                    if (exercise.customNote == null) exercise.customNote = ""
+                                                }
+                                            }
+                                        }
+
+                                        // Right Aligned: Exercise Name (Bold Typography)
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.End,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text(
+                                                text = exercise.name,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Teal400,
+                                                textAlign = TextAlign.End
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            BarbellIcon(modifier = Modifier.size(20.dp), tint = Teal400)
+                                        }
+                                    }
+
+                                    // Display Custom Note inline if present
+                                    exercise.customNote?.let { noteVal ->
+                                        OutlinedTextField(
+                                            value = noteVal,
+                                            onValueChange = { exercise.customNote = it },
+                                            placeholder = { Text("Exercise-specific note...", color = Slate500, fontSize = 11.sp) },
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                            textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp),
+                                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Teal400)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Sub-set Matrix Columns Headers
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Set", color = Slate400, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(0.8f))
+                                        Text("Previous", color = Slate400, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1.5f))
+                                        Text("kg", color = Slate400, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1.2f))
+                                        Text("Reps", color = Slate400, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1.2f))
+                                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                            Text("Done", color = Slate400, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+
+                                    // Sub-sets List
+                                    exercise.sets.forEachIndexed { setIdx, set ->
+                                        val isCompleted = set.isCompleted
+                                        val restTimeLeft = activeSetRestTimers[set.id]
+                                        val restTimeTot = activeSetRestTotals[set.id] ?: 90f
+
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 4.dp)
+                                                    .background(if (isCompleted) Teal400.copy(alpha = 0.08f) else Color.Transparent)
+                                                    .padding(horizontal = 4.dp),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                // Column 1: Set Number & Type indicator
+                                                Row(modifier = Modifier.weight(0.8f), verticalAlignment = Alignment.CenterVertically) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(20.dp)
+                                                            .background(if (set.type == "Warm-up") Amber500 else Slate800, RoundedCornerShape(4.dp)),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text(
+                                                            text = (setIdx + 1).toString(),
+                                                            color = Color.White,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
+                                                }
+
+                                                // Column 2: Previous
+                                                Text(
+                                                    text = set.previous,
+                                                    color = Slate300,
+                                                    fontSize = 12.sp,
+                                                    modifier = Modifier.weight(1.5f)
+                                                )
+
+                                                // Column 3: kg Input
+                                                OutlinedTextField(
+                                                    value = set.weight,
+                                                    onValueChange = { set.weight = it },
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = Teal400,
+                                                        unfocusedBorderColor = Slate800,
+                                                        focusedTextColor = Color.White,
+                                                        unfocusedTextColor = Color.White
+                                                    ),
+                                                    modifier = Modifier
+                                                        .weight(1.2f)
+                                                        .padding(horizontal = 2.dp)
+                                                        .height(44.dp),
+                                                    textStyle = LocalTextStyle.current.copy(fontSize = 12.sp, textAlign = TextAlign.Center),
+                                                    singleLine = true
+                                                )
+
+                                                // Column 4: Reps Input
+                                                OutlinedTextField(
+                                                    value = set.reps,
+                                                    onValueChange = { set.reps = it },
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                    colors = OutlinedTextFieldDefaults.colors(
+                                                        focusedBorderColor = Teal400,
+                                                        unfocusedBorderColor = Slate800,
+                                                        focusedTextColor = Color.White,
+                                                        unfocusedTextColor = Color.White
+                                                    ),
+                                                    modifier = Modifier
+                                                        .weight(1.2f)
+                                                        .padding(horizontal = 2.dp)
+                                                        .height(44.dp),
+                                                    textStyle = LocalTextStyle.current.copy(fontSize = 12.sp, textAlign = TextAlign.Center),
+                                                    singleLine = true
+                                                )
+
+                                                // Column 5: Complete Tick Button
+                                                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                                    IconButton(
+                                                        onClick = {
+                                                            val nextVal = !set.isCompleted
+                                                            set.isCompleted = nextVal
+                                                            if (nextVal) {
+                                                                // Instantly mount Rest Timer
+                                                                activeSetRestTimers[set.id] = 90f
+                                                                activeSetRestTotals[set.id] = 90f
+
+                                                                // Log Personal Record check
+                                                                val weightVal = set.weight.toDoubleOrNull() ?: 0.0
+                                                                val repsVal = set.reps.toIntOrNull() ?: 0
+                                                                if (weightVal > 0.0 || repsVal > 0) {
+                                                                    viewModel.checkAndLogPersonalRecord(
+                                                                        exerciseName = exercise.name,
+                                                                        weight = weightVal,
+                                                                        reps = repsVal,
+                                                                        onNewRecord = { pr ->
+                                                                            activePrRecord = pr
+                                                                            showPrConfetti = true
+                                                                        }
+                                                                    )
+                                                                }
+                                                            } else {
+                                                                activeSetRestTimers.remove(set.id)
+                                                                activeSetRestTotals.remove(set.id)
+                                                            }
+                                                        },
+                                                        modifier = Modifier.size(32.dp)
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = if (isCompleted) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                                            contentDescription = "Complete Set",
+                                                            tint = if (isCompleted) Emerald400 else Slate500,
+                                                            modifier = Modifier.size(24.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            // Inline Depletion Rest Timer
+                                            if (restTimeLeft != null && restTimeLeft > 0f) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(vertical = 4.dp, horizontal = 8.dp)
+                                                        .background(Slate950, RoundedCornerShape(8.dp))
+                                                        .border(1.dp, Slate800, RoundedCornerShape(8.dp))
+                                                        .padding(8.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text(
+                                                            text = "Resting: ${restTimeLeft.toInt()}s",
+                                                            color = Teal400,
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                        LinearProgressIndicator(
+                                                            progress = { restTimeLeft / restTimeTot },
+                                                            modifier = Modifier
+                                                                .weight(1f)
+                                                                .padding(horizontal = 8.dp)
+                                                                .height(6.dp)
+                                                                .clip(RoundedCornerShape(3.dp)),
+                                                            color = Teal400,
+                                                            trackColor = Slate800
+                                                        )
+                                                    }
+                                                    Spacer(modifier = Modifier.height(6.dp))
+                                                    Row(
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        TextButton(
+                                                            onClick = { activeSetRestTimers.remove(set.id) },
+                                                            contentPadding = PaddingValues(0.dp),
+                                                            modifier = Modifier.height(28.dp)
+                                                        ) {
+                                                            Text("Skip", color = Crimson400, fontSize = 11.sp)
+                                                        }
+                                                        TextButton(
+                                                            onClick = {
+                                                                val prevLeft = activeSetRestTimers[set.id] ?: 0f
+                                                                val prevTot = activeSetRestTotals[set.id] ?: 90f
+                                                                activeSetRestTimers[set.id] = prevLeft + 5f
+                                                                activeSetRestTotals[set.id] = prevTot + 5f
+                                                            },
+                                                            contentPadding = PaddingValues(0.dp),
+                                                            modifier = Modifier.height(28.dp)
+                                                        ) {
+                                                            Text("+5 Sec", color = Teal400, fontSize = 11.sp)
+                                                        }
+                                                        TextButton(
+                                                            onClick = {
+                                                                val prevLeft = activeSetRestTimers[set.id] ?: 0f
+                                                                val prevTot = activeSetRestTotals[set.id] ?: 90f
+                                                                activeSetRestTimers[set.id] = (prevLeft - 5f).coerceAtLeast(0f)
+                                                            },
+                                                            contentPadding = PaddingValues(0.dp),
+                                                            modifier = Modifier.height(28.dp)
+                                                        ) {
+                                                            Text("-5 Sec", color = Teal400, fontSize = 11.sp)
+                                                        }
+                                                        Spacer(modifier = Modifier.weight(1f))
+                                                        Button(
+                                                            onClick = {
+                                                                exercise.sets.add(ActiveSet(weight = set.weight, reps = set.reps, type = "Normal"))
+                                                            },
+                                                            colors = ButtonDefaults.buttonColors(containerColor = Slate800),
+                                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                            modifier = Modifier.height(24.dp)
+                                                        ) {
+                                                            Text("Add Set", color = Teal400, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
+
+                    // Spacer at the bottom to accommodate sticky footer
+                    item {
+                        Spacer(modifier = Modifier.height(260.dp))
+                    }
                 }
 
-                // Sliding Rest Timer overlay at bottom
-                AnimatedVisibility(
-                    visible = restTimeRemaining != null,
-                    enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                    exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-                    modifier = Modifier.align(Alignment.BottomCenter)
+                // LINE 11 & LINE 13: Sticky Scrolling 'Add Exercise' action sheet + Cancel Workout button
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Slate950.copy(alpha = 0.95f), Slate950)
+                            )
+                        )
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    restTimeRemaining?.let { sec ->
-                        RestTimerOverlay(
-                            secondsLeft = sec,
-                            totalSeconds = restTimeTotal,
-                            onAddSeconds = { restTimeRemaining = (restTimeRemaining ?: 0) + 30 },
-                            onSubtractSeconds = { restTimeRemaining = maxOf(0, (restTimeRemaining ?: 0) - 30) },
-                            onSkip = { restTimeRemaining = null }
+                    // Line 11: Sticky Add Exercise baseline action sheet
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 260.dp),
+                        colors = CardDefaults.cardColors(containerColor = Slate900),
+                        shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                        border = BorderStroke(1.dp, Slate800)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            // Top Row: 3-dots on Left + Search on Right
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // 3-dots to toggle custom exercise
+                                Box {
+                                    var showAddExerciseMenu by remember { mutableStateOf(false) }
+                                    IconButton(
+                                        onClick = { showAddExerciseMenu = true },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Default.MoreVert, contentDescription = "Custom Exercise Options", tint = Teal400)
+                                    }
+                                    DropdownMenu(
+                                        expanded = showAddExerciseMenu,
+                                        onDismissRequest = { showAddExerciseMenu = false },
+                                        modifier = Modifier.background(Slate900)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Create Custom Exercise", color = Color.White) },
+                                            onClick = {
+                                                showCustomExercisePopupLocal = true
+                                                showAddExerciseMenu = false
+                                            }
+                                        )
+                                    }
+                                }
+
+                                // Search bar
+                                OutlinedTextField(
+                                    value = addExerciseSearchQuery,
+                                    onValueChange = { addExerciseSearchQuery = it },
+                                    placeholder = { Text("Quick add exercise...", color = Slate500, fontSize = 11.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f),
+                                    textStyle = LocalTextStyle.current.copy(color = Color.White, fontSize = 12.sp),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Teal400,
+                                        unfocusedBorderColor = Slate800,
+                                        focusedContainerColor = Slate950,
+                                        unfocusedContainerColor = Slate950
+                                    )
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Muscle classification chips
+                            var selectedMuscleChip by remember { mutableStateOf("Arms") }
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                items(listOf("Arms", "Back", "Cardio", "Chest", "Core", "Legs")) { cat ->
+                                    val isSel = selectedMuscleChip == cat
+                                    FilterChip(
+                                        selected = isSel,
+                                        onClick = { selectedMuscleChip = cat },
+                                        label = { Text(cat, fontSize = 10.sp, fontWeight = FontWeight.Bold) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = Teal400,
+                                            selectedLabelColor = Slate950,
+                                            containerColor = Slate800,
+                                            labelColor = Color.White
+                                        )
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            val exercisesForChip = (defaultExerciseCategories[selectedMuscleChip] ?: emptyList()).filter {
+                                it.contains(addExerciseSearchQuery, ignoreCase = true)
+                            }
+
+                            if (exercisesForChip.size <= 5) {
+                                // Row-wise display
+                                LazyRow(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    items(exercisesForChip) { exName ->
+                                        Card(
+                                            modifier = Modifier
+                                                .clickable {
+                                                    if (activeExercises.none { it.name == exName }) {
+                                                        activeExercises.add(
+                                                            ActiveExercise(
+                                                                name = exName,
+                                                                sets = mutableStateListOf(
+                                                                    ActiveSet(weight = "60", reps = "10", type = "Normal")
+                                                                )
+                                                            )
+                                                        )
+                                                        Toast.makeText(context, "Added $exName", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        Toast.makeText(context, "$exName already added", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                },
+                                            colors = CardDefaults.cardColors(containerColor = Slate800),
+                                            border = BorderStroke(1.dp, Slate700),
+                                            shape = RoundedCornerShape(16.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                DumbbellIcon(modifier = Modifier.size(12.dp), tint = Teal400)
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(exName, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                // Vertical scrolling list when exceeding 5 items
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 140.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    items(exercisesForChip) { exName ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Slate800)
+                                                .clickable {
+                                                    if (activeExercises.none { it.name == exName }) {
+                                                        activeExercises.add(
+                                                            ActiveExercise(
+                                                                name = exName,
+                                                                sets = mutableStateListOf(
+                                                                    ActiveSet(weight = "60", reps = "10", type = "Normal")
+                                                                )
+                                                            )
+                                                        )
+                                                        Toast.makeText(context, "Added $exName", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        Toast.makeText(context, "$exName already added", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                                .padding(vertical = 6.dp, horizontal = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            DumbbellIcon(modifier = Modifier.size(14.dp), tint = Teal400)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(exName, color = Color.White, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Line 12: Empty layout spacer block
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Line 13: Permanently anchored baseline "Cancel Workout" button link
+                    TextButton(
+                        onClick = { showCancelConfirmation = true },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text(
+                            text = "Cancel Workout",
+                            color = Crimson400,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            style = TextStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline)
                         )
                     }
                 }
             }
+        }
+
+        // Custom Exercise creation inside Active workout dialog
+        if (showCustomExercisePopupLocal) {
+            var cName by remember { mutableStateOf("") }
+            var cMusclePart by remember { mutableStateOf("") }
+            var cEquipment by remember { mutableStateOf("Barbell") }
+            var cDifficulty by remember { mutableStateOf("Intermediate") }
+            var cNotes by remember { mutableStateOf("") }
+
+            val equipmentOptions = listOf("Barbell", "Dumbbell", "Cable", "Body Weight", "Medicine Ball", "Machine", "Free Weights")
+            val difficultyOptions = listOf("Beginner", "Intermediate", "Advanced")
+
+            var showEquipmentDropdown by remember { mutableStateOf(false) }
+            var showDifficultyDropdown by remember { mutableStateOf(false) }
+
+            AlertDialog(
+                onDismissRequest = { showCustomExercisePopupLocal = false },
+                title = { Text("Create Custom Exercise", color = Color.White, fontWeight = FontWeight.Bold) },
+                text = {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        item {
+                            OutlinedTextField(
+                                value = cName,
+                                onValueChange = { cName = it },
+                                label = { Text("Exercise Name") },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                    focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        item {
+                            OutlinedTextField(
+                                value = cMusclePart,
+                                onValueChange = { cMusclePart = it },
+                                label = { Text("Muscle Group (e.g. Chest)") },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                    focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = cEquipment,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Equipment Required") },
+                                    trailingIcon = {
+                                        IconButton(onClick = { showEquipmentDropdown = true }) {
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                        }
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                        focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                DropdownMenu(
+                                    expanded = showEquipmentDropdown,
+                                    onDismissRequest = { showEquipmentDropdown = false }
+                                ) {
+                                    equipmentOptions.forEach { opt ->
+                                        DropdownMenuItem(
+                                            text = { Text(opt) },
+                                            onClick = {
+                                                cEquipment = opt
+                                                showEquipmentDropdown = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = cDifficulty,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Difficulty Level") },
+                                    trailingIcon = {
+                                        IconButton(onClick = { showDifficultyDropdown = true }) {
+                                            Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                        }
+                                    },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                        focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                DropdownMenu(
+                                    expanded = showDifficultyDropdown,
+                                    onDismissRequest = { showDifficultyDropdown = false }
+                                ) {
+                                    difficultyOptions.forEach { opt ->
+                                        DropdownMenuItem(
+                                            text = { Text(opt) },
+                                            onClick = {
+                                                cDifficulty = opt
+                                                showDifficultyDropdown = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            OutlinedTextField(
+                                value = cNotes,
+                                onValueChange = { cNotes = it },
+                                label = { Text("Notes/Instructions") },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                    focusedTextColor = Color.White, unfocusedTextColor = Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (cName.isNotBlank() && cMusclePart.isNotBlank()) {
+                                viewModel.addCustomExercise(
+                                    name = cName,
+                                    bodyPart = cMusclePart,
+                                    equipment = cEquipment,
+                                    level = cDifficulty,
+                                    specificInstruction = cNotes.ifEmpty { null },
+                                    onSuccess = {
+                                        activeExercises.add(
+                                            ActiveExercise(
+                                                name = cName,
+                                                sets = mutableStateListOf(
+                                                    ActiveSet(weight = "60", reps = "10", type = "Normal")
+                                                )
+                                            )
+                                        )
+                                    },
+                                    onError = {}
+                                )
+                                Toast.makeText(context, "Custom Exercise Created & Added! 🏋️‍♂️", Toast.LENGTH_SHORT).show()
+                                showCustomExercisePopupLocal = false
+                            } else {
+                                Toast.makeText(context, "Please complete Name and Muscle Group.", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Teal400)
+                    ) {
+                        Text("Save Exercise", color = Slate950, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showCustomExercisePopupLocal = false }) {
+                        Text("Cancel", color = Slate400)
+                    }
+                },
+                containerColor = Slate900
+            )
         }
 
         // --- ACTIVE SESSION PARAMETER DIALOGS ---
@@ -804,7 +1452,7 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                     }
                 }
             } else {
-                items(completedWorkouts.take(5)) { session ->
+                items(completedWorkouts) { session ->
                     var isExpanded by remember { mutableStateOf(false) }
                     val sdf = remember { SimpleDateFormat("MMM dd, yyyy • hh:mm a", Locale.getDefault()) }
                     val dateStr = sdf.format(Date(session.timestamp))
@@ -826,11 +1474,18 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                                     Text(session.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                     Text(dateStr, color = Slate400, fontSize = 11.sp)
                                 }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
                                     Icon(Icons.Default.AccessTime, contentDescription = null, tint = Amber400, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
                                     Text("${session.durationMinutes}m", color = Amber400, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(
+                                        onClick = { viewModel.deleteWorkoutSession(session.id) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete completed session", tint = Crimson400, modifier = Modifier.size(16.dp))
+                                    }
                                     Icon(
                                         imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                         contentDescription = "Details toggle",

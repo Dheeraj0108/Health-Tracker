@@ -381,7 +381,58 @@ fun RoutineBuilderView(
     routines: List<ExerciseRoutine>
 ) {
     val context = LocalContext.current
-    var showAddDialog by remember { mutableStateOf(false) }
+    val customExercises by viewModel.customExercises.collectAsStateWithLifecycle()
+
+    var showRoutineDialog by remember { mutableStateOf(false) }
+    var editingRoutineId by remember { mutableStateOf<Int?>(null) }
+    var routineName by remember { mutableStateOf("") }
+    var routineDesc by remember { mutableStateOf("") }
+    val selectedExercises = remember { mutableStateListOf<SelectedExerciseEntry>() }
+
+    var showExerciseSelector by remember { mutableStateOf(false) }
+    var showCustomExercisePopup by remember { mutableStateOf(false) }
+
+    val defaultExerciseRegistry = remember {
+        listOf(
+            "Squats", "Leg Press", "Deadlift", "Leg Curl", "Calf Raises",
+            "Bench Press", "Dumbbell Flys", "Incline Press", "Overhead Press",
+            "Lateral Raises", "Pull-ups", "Barbell Rows", "Bicep Curls",
+            "Hammer Curls", "Tricep Pushdowns", "Plank", "Crunches"
+        )
+    }
+
+    val allSelectableExercises = remember(customExercises) {
+        defaultExerciseRegistry + customExercises.map { it.name }
+    }
+
+    // Function to open the routine creation/editing dialog
+    val openRoutineDialog = { routine: ExerciseRoutine? ->
+        if (routine != null) {
+            editingRoutineId = routine.id
+            routineName = routine.name
+            routineDesc = routine.description
+            selectedExercises.clear()
+            // Parse exercisesListJson (format: Name|sets|reps|weight;Name|sets|reps|weight)
+            routine.exercisesListJson.split(";").forEach { item ->
+                if (item.isNotBlank()) {
+                    val parts = item.split("|")
+                    if (parts.isNotEmpty()) {
+                        val name = parts[0]
+                        val sets = parts.getOrNull(1) ?: "4"
+                        val reps = parts.getOrNull(2) ?: "10"
+                        val weight = parts.getOrNull(3) ?: "0"
+                        selectedExercises.add(SelectedExerciseEntry(name, sets, reps, weight))
+                    }
+                }
+            }
+        } else {
+            editingRoutineId = null
+            routineName = ""
+            routineDesc = ""
+            selectedExercises.clear()
+        }
+        showRoutineDialog = true
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -393,10 +444,10 @@ fun RoutineBuilderView(
                 text = "Your Routines",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = if (AppThemeState.themeMode == "white") Slate900 else Color.White
             )
             Button(
-                onClick = { showAddDialog = true },
+                onClick = { openRoutineDialog(null) },
                 colors = ButtonDefaults.buttonColors(containerColor = Teal400),
                 shape = RoundedCornerShape(10.dp)
             ) {
@@ -411,7 +462,7 @@ fun RoutineBuilderView(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No custom routines built yet. Create one above!", color = Slate500, fontSize = 14.sp)
+                Text("No custom routines built yet. Create one above! 🏋️‍♂️", color = Slate500, fontSize = 14.sp)
             }
         } else {
             LazyColumn(
@@ -425,7 +476,8 @@ fun RoutineBuilderView(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { isExpanded = !isExpanded },
-                        colors = CardDefaults.cardColors(containerColor = Slate900)
+                        colors = CardDefaults.cardColors(containerColor = if (AppThemeState.themeMode == "white") Color(0xFFF8FAFC) else Slate900),
+                        border = BorderStroke(1.dp, if (AppThemeState.themeMode == "white") Color(0xFFE2E8F0) else Slate800)
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
                             Row(
@@ -437,7 +489,7 @@ fun RoutineBuilderView(
                                     Text(
                                         text = routine.name,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White,
+                                        color = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
                                         fontSize = 15.sp
                                     )
                                     Text(
@@ -447,11 +499,16 @@ fun RoutineBuilderView(
                                         maxLines = if (isExpanded) Int.MAX_VALUE else 1
                                     )
                                 }
-                                IconButton(onClick = {
-                                    viewModel.deleteRoutine(routine.id)
-                                    Toast.makeText(context, "Routine Deleted", Toast.LENGTH_SHORT).show()
-                                }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Crimson500, modifier = Modifier.size(20.dp))
+                                Row {
+                                    IconButton(onClick = { openRoutineDialog(routine) }) {
+                                        Icon(Icons.Default.Edit, contentDescription = "Edit Routine", tint = Teal400, modifier = Modifier.size(20.dp))
+                                    }
+                                    IconButton(onClick = {
+                                        viewModel.deleteRoutine(routine.id)
+                                        Toast.makeText(context, "Routine Deleted", Toast.LENGTH_SHORT).show()
+                                    }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Crimson500, modifier = Modifier.size(20.dp))
+                                    }
                                 }
                             }
 
@@ -461,20 +518,35 @@ fun RoutineBuilderView(
                                         .fillMaxWidth()
                                         .padding(top = 10.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(Slate950)
+                                        .background(if (AppThemeState.themeMode == "white") Color(0xFFEDF2F7) else Slate950)
                                         .padding(10.dp)
                                 ) {
-                                    Text("Exercises:", fontWeight = FontWeight.Bold, color = Teal400, fontSize = 12.sp)
+                                    Text("Exercises Matrix & Targets:", fontWeight = FontWeight.Bold, color = Teal400, fontSize = 12.sp)
                                     Spacer(modifier = Modifier.height(4.dp))
                                     val exercisesList = routine.exercisesListJson.split(";").filter { it.isNotBlank() }
                                     exercisesList.forEach { exercise ->
+                                        val parts = exercise.split("|")
+                                        val name = parts.getOrNull(0) ?: ""
+                                        val sets = parts.getOrNull(1) ?: "4"
+                                        val reps = parts.getOrNull(2) ?: "10"
+                                        val weight = parts.getOrNull(3) ?: "0"
+
                                         Row(
-                                            modifier = Modifier.padding(vertical = 2.dp),
-                                            verticalAlignment = Alignment.CenterVertically
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Box(modifier = Modifier.size(6.dp).background(Teal400, RoundedCornerShape(100)))
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(exercise.trim(), color = Slate100, fontSize = 12.sp)
+                                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                                Box(modifier = Modifier.size(6.dp).background(Teal400, RoundedCornerShape(100)))
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(name, color = if (AppThemeState.themeMode == "white") Slate900 else Slate100, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                            Text(
+                                                text = "${sets}s × ${reps}r | ${weight}kg",
+                                                color = Slate400,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         }
                                     }
                                 }
@@ -486,83 +558,470 @@ fun RoutineBuilderView(
         }
     }
 
-    if (showAddDialog) {
-        var routineName by remember { mutableStateOf("") }
-        var routineDesc by remember { mutableStateOf("") }
-        var exercisesText by remember { mutableStateOf("") }
-
+    // --- NEW ROUTINE / EDIT ROUTINE OVERLAY WINDOW ---
+    if (showRoutineDialog) {
         AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            title = { Text("Create Custom Routine", color = Color.White) },
+            onDismissRequest = { showRoutineDialog = false },
+            title = {
+                Text(
+                    text = if (editingRoutineId == null) "New Routine template" else "Edit Routine template",
+                    color = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
-                Column(
+                LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    OutlinedTextField(
-                        value = routineName,
-                        onValueChange = { routineName = it },
-                        label = { Text("Routine Name (e.g., Heavy Legs)") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Teal400,
-                            unfocusedBorderColor = Slate600,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    item {
+                        OutlinedTextField(
+                            value = routineName,
+                            onValueChange = { routineName = it },
+                            label = { Text("Routine Name (e.g., Heavy Legs)") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Teal400,
+                                unfocusedBorderColor = Slate600,
+                                focusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                unfocusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
 
-                    OutlinedTextField(
-                        value = routineDesc,
-                        onValueChange = { routineDesc = it },
-                        label = { Text("Brief Description") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Teal400,
-                            unfocusedBorderColor = Slate600,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    item {
+                        OutlinedTextField(
+                            value = routineDesc,
+                            onValueChange = { routineDesc = it },
+                            label = { Text("Brief Description") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Teal400,
+                                unfocusedBorderColor = Slate600,
+                                focusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                unfocusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
 
-                    OutlinedTextField(
-                        value = exercisesText,
-                        onValueChange = { exercisesText = it },
-                        label = { Text("Exercises (separate with semi-colon ';')") },
-                        placeholder = { Text("Squat (4x8); Leg Press (3x12)") },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Teal400,
-                            unfocusedBorderColor = Slate600,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        minLines = 3
-                    )
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Exercises Allocation",
+                                color = Teal400,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Button(
+                                onClick = { showExerciseSelector = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = Slate800),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Teal400, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Add Exercises", color = Teal400, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // Selected exercises dynamic sets/reps metric input matrix
+                    if (selectedExercises.isEmpty()) {
+                        item {
+                            Text(
+                                "No exercises added to this routine template yet.",
+                                color = Slate500,
+                                fontSize = 11.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                            )
+                        }
+                    } else {
+                        items(selectedExercises) { entry ->
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = if (AppThemeState.themeMode == "white") Color(0xFFEDF2F7) else Slate950),
+                                border = BorderStroke(1.dp, Slate800)
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            entry.name,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        IconButton(
+                                            onClick = { selectedExercises.remove(entry) },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, contentDescription = "Remove", tint = Crimson500, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+
+                                    // Dynamic Matrix Allocation: adjacent sets, reps, and weight inputs
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        OutlinedTextField(
+                                            value = entry.sets,
+                                            onValueChange = { entry.sets = it },
+                                            label = { Text("Sets", fontSize = 10.sp) },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                                focusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                                unfocusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        OutlinedTextField(
+                                            value = entry.reps,
+                                            onValueChange = { entry.reps = it },
+                                            label = { Text("Reps", fontSize = 10.sp) },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                                focusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                                unfocusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        )
+
+                                        OutlinedTextField(
+                                            value = entry.weight,
+                                            onValueChange = { entry.weight = it },
+                                            label = { Text("Wt (kg)", fontSize = 10.sp) },
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            colors = OutlinedTextFieldDefaults.colors(
+                                                focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                                focusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                                unfocusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White
+                                            ),
+                                            modifier = Modifier.weight(1.2f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        if (routineName.isNotBlank() && exercisesText.isNotBlank()) {
-                            viewModel.addRoutine(routineName, routineDesc, exercisesText)
-                            Toast.makeText(context, "Routine Created!", Toast.LENGTH_SHORT).show()
-                            showAddDialog = false
+                        if (routineName.isNotBlank() && selectedExercises.isNotEmpty()) {
+                            // Serialize back to Name|sets|reps|weight;Name|sets|reps|weight format
+                            val exercisesJson = selectedExercises.joinToString(";") {
+                                "${it.name}|${it.sets.ifBlank { "4" }}|${it.reps.ifBlank { "10" }}|${it.weight.ifBlank { "0" }}"
+                            }
+
+                            if (editingRoutineId == null) {
+                                viewModel.addRoutine(routineName, routineDesc, exercisesJson)
+                                Toast.makeText(context, "Template Created! 🚀", Toast.LENGTH_SHORT).show()
+                            } else {
+                                viewModel.updateRoutine(editingRoutineId!!, routineName, routineDesc, exercisesJson)
+                                Toast.makeText(context, "Template Edited! 🚀", Toast.LENGTH_SHORT).show()
+                            }
+                            showRoutineDialog = false
                         } else {
-                            Toast.makeText(context, "Please enter routine name and exercises.", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Please enter name and allocate exercises.", Toast.LENGTH_SHORT).show()
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Teal400)
                 ) {
-                    Text("Create", color = Slate950)
+                    Text(if (editingRoutineId == null) "Create Template" else "Save Changes", color = Slate950, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) {
+                TextButton(onClick = { showRoutineDialog = false }) {
                     Text("Cancel", color = Slate400)
                 }
             },
-            containerColor = Slate900
+            containerColor = if (AppThemeState.themeMode == "white") Color.White else Slate900
+        )
+    }
+
+    // --- EXERCISE REGISTRY SELECTION MODAL ---
+    if (showExerciseSelector) {
+        var searchQuery by remember { mutableStateOf("") }
+        val filteredList = allSelectableExercises.filter { it.contains(searchQuery, ignoreCase = true) }
+
+        AlertDialog(
+            onDismissRequest = { showExerciseSelector = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Select Exercises", color = if (AppThemeState.themeMode == "white") Slate900 else Color.White, fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = { showCustomExercisePopup = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Teal400),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.height(28.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = Slate950, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text("Custom", color = Slate950, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        label = { Text("Search exercise") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Slate400) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                            focusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                            unfocusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 280.dp)
+                    ) {
+                        items(filteredList) { exerciseName ->
+                            val isAlreadySelected = selectedExercises.any { it.name == exerciseName }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isAlreadySelected) Teal400.copy(alpha = 0.15f) else Color.Transparent)
+                                    .clickable {
+                                        if (isAlreadySelected) {
+                                            selectedExercises.removeAll { it.name == exerciseName }
+                                        } else {
+                                            selectedExercises.add(SelectedExerciseEntry(exerciseName, "4", "10", "0"))
+                                        }
+                                    }
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    exerciseName,
+                                    color = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (isAlreadySelected) {
+                                    Icon(Icons.Default.Check, contentDescription = "Selected", tint = Teal400, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showExerciseSelector = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Teal400)
+                ) {
+                    Text("OK", color = Slate950, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = if (AppThemeState.themeMode == "white") Color.White else Slate900
+        )
+    }
+
+    // --- CUSTOM EXERCISE CREATION POPUP MODAL ---
+    if (showCustomExercisePopup) {
+        var cName by remember { mutableStateOf("") }
+        var cMusclePart by remember { mutableStateOf("") }
+        var cEquipment by remember { mutableStateOf("Barbell") }
+        var cDifficulty by remember { mutableStateOf("Intermediate") }
+        var cNotes by remember { mutableStateOf("") }
+
+        val equipmentOptions = listOf("Barbell", "Dumbbell", "Cable", "Body Weight", "Medicine Ball", "Machine", "Free Weights")
+        val difficultyOptions = listOf("Beginner", "Intermediate", "Advanced")
+
+        var showEquipmentDropdown by remember { mutableStateOf(false) }
+        var showDifficultyDropdown by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { showCustomExercisePopup = false },
+            title = { Text("Create Custom Exercise", color = if (AppThemeState.themeMode == "white") Slate900 else Color.White, fontWeight = FontWeight.Bold) },
+            text = {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    item {
+                        OutlinedTextField(
+                            value = cName,
+                            onValueChange = { cName = it },
+                            label = { Text("Exercise Name") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                focusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                unfocusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = cMusclePart,
+                            onValueChange = { cMusclePart = it },
+                            label = { Text("Muscle Group (e.g. Chest)") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                focusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                unfocusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = cEquipment,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Equipment Required") },
+                                trailingIcon = {
+                                    IconButton(onClick = { showEquipmentDropdown = true }) {
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                    }
+                                },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                    focusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                    unfocusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            DropdownMenu(
+                                expanded = showEquipmentDropdown,
+                                onDismissRequest = { showEquipmentDropdown = false }
+                            ) {
+                                equipmentOptions.forEach { opt ->
+                                    DropdownMenuItem(
+                                        text = { Text(opt) },
+                                        onClick = {
+                                            cEquipment = opt
+                                            showEquipmentDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = cDifficulty,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Difficulty Level") },
+                                trailingIcon = {
+                                    IconButton(onClick = { showDifficultyDropdown = true }) {
+                                        Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                                    }
+                                },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                    focusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                    unfocusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            DropdownMenu(
+                                expanded = showDifficultyDropdown,
+                                onDismissRequest = { showDifficultyDropdown = false }
+                            ) {
+                                difficultyOptions.forEach { opt ->
+                                    DropdownMenuItem(
+                                        text = { Text(opt) },
+                                        onClick = {
+                                            cDifficulty = opt
+                                            showDifficultyDropdown = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = cNotes,
+                            onValueChange = { cNotes = it },
+                            label = { Text("Notes/Instructions") },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Teal400, unfocusedBorderColor = Slate600,
+                                focusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White,
+                                unfocusedTextColor = if (AppThemeState.themeMode == "white") Slate900 else Color.White
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (cName.isNotBlank() && cMusclePart.isNotBlank()) {
+                            viewModel.addCustomExercise(
+                                name = cName,
+                                bodyPart = cMusclePart,
+                                equipment = cEquipment,
+                                level = cDifficulty,
+                                specificInstruction = cNotes.ifEmpty { null },
+                                onSuccess = {},
+                                onError = {}
+                            )
+                            Toast.makeText(context, "Custom Exercise Created! 🏋️‍♂️", Toast.LENGTH_SHORT).show()
+                            showCustomExercisePopup = false
+                        } else {
+                            Toast.makeText(context, "Please complete Name and Muscle Group.", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Teal400)
+                ) {
+                    Text("Save Exercise", color = Slate950, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomExercisePopup = false }) {
+                    Text("Cancel", color = Slate400)
+                }
+            },
+            containerColor = if (AppThemeState.themeMode == "white") Color.White else Slate900
         )
     }
 }
+
+// Data class representation for dynamic state allocation
+class SelectedExerciseEntry(
+    val name: String,
+    initialSets: String = "4",
+    initialReps: String = "10",
+    initialWeight: String = "0"
+) {
+    var sets by mutableStateOf(initialSets)
+    var reps by mutableStateOf(initialReps)
+    var weight by mutableStateOf(initialWeight)
+}
+
