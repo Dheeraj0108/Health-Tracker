@@ -385,6 +385,22 @@ fun AnimatedGlass(
                         path = waterPath,
                         color = Teal400.copy(alpha = 0.85f)
                     )
+
+                    // Draw floating ambient bubbles inside the filled glass portion
+                    if (fillProgress > 0.15f) {
+                        val bubbleColor = Color.White.copy(alpha = 0.35f)
+                        val bubbleX1 = width * 0.35f
+                        val bubbleY1 = waterTopY + (waterHeight * 0.4f) + 4.dp.toPx() * kotlin.math.cos(phase * 1.5f)
+                        drawCircle(color = bubbleColor, radius = 3.dp.toPx(), center = Offset(bubbleX1, bubbleY1))
+
+                        val bubbleX2 = width * 0.65f
+                        val bubbleY2 = waterTopY + (waterHeight * 0.7f) + 3.dp.toPx() * kotlin.math.sin(phase * 1.2f)
+                        drawCircle(color = bubbleColor, radius = 2.dp.toPx(), center = Offset(bubbleX2, bubbleY2))
+
+                        val bubbleX3 = width * 0.48f
+                        val bubbleY3 = waterTopY + (waterHeight * 0.25f) + 5.dp.toPx() * kotlin.math.cos(phase)
+                        drawCircle(color = bubbleColor, radius = 4.dp.toPx(), center = Offset(bubbleX3, bubbleY3))
+                    }
                 }
             }
 

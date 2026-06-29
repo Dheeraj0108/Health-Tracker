@@ -9,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -91,6 +92,29 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
     // Personal Records States
     var activePrRecord by remember { mutableStateOf<PersonalRecord?>(null) }
     var showPrConfetti by remember { mutableStateOf(false) }
+
+    // Minimized and temporal states
+    var isWorkoutMinimized by remember { mutableStateOf(false) }
+    var activeRestingSetIndex by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var showTimeAdjustDialog by remember { mutableStateOf(false) }
+    var showNoteDialog by remember { mutableStateOf(false) }
+    var showRestSettingsDialog by remember { mutableStateOf(false) }
+    var showTopBarMenu by remember { mutableStateOf(false) }
+
+    val completedWorkouts by viewModel.workoutSessions.collectAsStateWithLifecycle()
+    val userRoutines by viewModel.routines.collectAsStateWithLifecycle()
+
+    // Helper for temporal workout naming
+    val getTemporalWorkoutName = {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        when {
+            hour in 5..11 -> "Morning Workout"
+            hour in 12..16 -> "Afternoon Workout"
+            hour in 17..21 -> "Evening Workout"
+            else -> "Night Workout"
+        }
+    }
 
     // Launch active timer
     LaunchedEffect(isStopwatchRunning) {
@@ -204,7 +228,7 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
         onFinished = { showPrConfetti = false }
     )
 
-    if (activeSessionName != null) {
+    if (activeSessionName != null && !isWorkoutMinimized) {
         // --- ACTIVE WORKOUT SESSION SHEET VIEW ---
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -212,24 +236,68 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                 TopAppBar(
                     title = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = activeSessionName ?: "Workout",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            
+                            Box {
+                                IconButton(onClick = { showTopBarMenu = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "More Options", tint = Slate300)
+                                }
+                                DropdownMenu(
+                                    expanded = showTopBarMenu,
+                                    onDismissRequest = { showTopBarMenu = false },
+                                    modifier = Modifier.background(Slate900)
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Edit Workout Name", color = Color.White) },
+                                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = Teal400) },
+                                        onClick = { showRenameDialog = true; showTopBarMenu = false }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Adjust Session Time", color = Color.White) },
+                                        leadingIcon = { Icon(Icons.Default.AccessTime, contentDescription = null, tint = Teal400) },
+                                        onClick = { showTimeAdjustDialog = true; showTopBarMenu = false }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Add Custom Text Note", color = Color.White) },
+                                        leadingIcon = { Icon(Icons.Default.Notes, contentDescription = null, tint = Teal400) },
+                                        onClick = { showNoteDialog = true; showTopBarMenu = false }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Rest Timer Settings", color = Color.White) },
+                                        leadingIcon = { Icon(Icons.Default.HourglassEmpty, contentDescription = null, tint = Teal400) },
+                                        onClick = { showRestSettingsDialog = true; showTopBarMenu = false }
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
                             Icon(
                                 imageVector = Icons.Default.Timer,
                                 contentDescription = null,
                                 tint = Teal400,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = formatStopwatch(stopwatchSeconds),
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = Teal400
                             )
                         }
                     },
                     navigationIcon = {
-                        IconButton(onClick = { showCancelConfirmation = true }) {
-                            Icon(Icons.Default.Close, contentDescription = "Cancel Workout", tint = Slate300)
+                        IconButton(onClick = { isWorkoutMinimized = true }) {
+                            Icon(Icons.Default.Minimize, contentDescription = "Minimize Context", tint = Slate300)
                         }
                     },
                     actions = {
@@ -241,15 +309,15 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                                     return@Button
                                 }
                                 
-                                // Serialize list to JSON (manual or simple string representation since moshi is optional)
                                 val serializedList = activeExercises.map { ex ->
                                     val setsStr = ex.sets.map { s -> "${s.type}:${s.weight}kg x ${s.reps}" }.joinToString(",")
                                     "${ex.name}|${ex.customNote ?: ""}|$setsStr"
                                 }.joinToString(";")
 
+                                val finalDuration = stopwatchSeconds / 60
                                 viewModel.logWorkoutSession(
                                     name = activeSessionName ?: "Workout",
-                                    durationMinutes = stopwatchSeconds / 60,
+                                    durationMinutes = if (finalDuration > 0) finalDuration else 1,
                                     exercisesJson = serializedList,
                                     notes = activeSessionNotes.ifEmpty { null }
                                 )
@@ -261,6 +329,7 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                                 activeExercises.clear()
                                 activeSessionNotes = ""
                                 restTimeRemaining = null
+                                isWorkoutMinimized = false
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Amber400),
                             shape = RoundedCornerShape(8.dp),
@@ -352,15 +421,25 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                                             }
                                         )
                                     }
-                                    if (restTimeRemaining == null) {
-                                        // Start Rest Timer
-                                        restTimeRemaining = restTimeTotal
+                                    activeRestingSetIndex = Pair(exercise.name, setIdx)
+                                    restTimeRemaining = restTimeTotal
+                                } else {
+                                    if (activeRestingSetIndex == Pair(exercise.name, setIdx)) {
+                                        activeRestingSetIndex = null
+                                        restTimeRemaining = null
                                     }
                                 }
                             },
                             onSetTypeChange = { setIdx, newType ->
                                 val set = exercise.sets[setIdx]
                                 set.type = newType
+                            },
+                            activeRestingSetIndex = activeRestingSetIndex,
+                            restTimeRemaining = restTimeRemaining,
+                            restTimeTotal = restTimeTotal,
+                            onSkipRest = {
+                                restTimeRemaining = null
+                                activeRestingSetIndex = null
                             }
                         )
                     }
@@ -416,6 +495,157 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                     }
                 }
             }
+        }
+
+        // --- ACTIVE SESSION PARAMETER DIALOGS ---
+        if (showRenameDialog) {
+            var tempName by remember { mutableStateOf(activeSessionName ?: "") }
+            AlertDialog(
+                onDismissRequest = { showRenameDialog = false },
+                title = { Text("Edit Workout Name", color = Color.White, fontWeight = FontWeight.Bold) },
+                text = {
+                    OutlinedTextField(
+                        value = tempName,
+                        onValueChange = { tempName = it },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Teal400, unfocusedBorderColor = Slate700, focusedTextColor = Color.White),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            if (tempName.isNotBlank()) {
+                                activeSessionName = tempName.trim()
+                            }
+                            showRenameDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Teal400)
+                    ) {
+                        Text("Save", color = Slate950)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRenameDialog = false }) {
+                        Text("Cancel", color = Slate400)
+                    }
+                },
+                containerColor = Slate900
+            )
+        }
+
+        if (showTimeAdjustDialog) {
+            var tempMins by remember { mutableStateOf((stopwatchSeconds / 60).toString()) }
+            AlertDialog(
+                onDismissRequest = { showTimeAdjustDialog = false },
+                title = { Text("Adjust Session Time", color = Color.White, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text("Modify elapsed session duration in minutes:", color = Slate300, fontSize = 12.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = tempMins,
+                            onValueChange = { tempMins = it },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Teal400, unfocusedBorderColor = Slate700, focusedTextColor = Color.White),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val mins = tempMins.toIntOrNull() ?: 0
+                            stopwatchSeconds = maxOf(0, mins * 60)
+                            showTimeAdjustDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Teal400)
+                    ) {
+                        Text("Apply", color = Slate950)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showTimeAdjustDialog = false }) {
+                        Text("Cancel", color = Slate400)
+                    }
+                },
+                containerColor = Slate900
+            )
+        }
+
+        if (showNoteDialog) {
+            var tempNote by remember { mutableStateOf(activeSessionNotes) }
+            AlertDialog(
+                onDismissRequest = { showNoteDialog = false },
+                title = { Text("Add Custom Text Note", color = Color.White, fontWeight = FontWeight.Bold) },
+                text = {
+                    OutlinedTextField(
+                        value = tempNote,
+                        onValueChange = { tempNote = it },
+                        placeholder = { Text("Enter custom note text...") },
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Teal400, unfocusedBorderColor = Slate700, focusedTextColor = Color.White),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            activeSessionNotes = tempNote.trim()
+                            showNoteDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Teal400)
+                    ) {
+                        Text("Save", color = Slate950)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showNoteDialog = false }) {
+                        Text("Cancel", color = Slate400)
+                    }
+                },
+                containerColor = Slate900
+            )
+        }
+
+        if (showRestSettingsDialog) {
+            var tempRest by remember { mutableStateOf(restTimeTotal.toString()) }
+            AlertDialog(
+                onDismissRequest = { showRestSettingsDialog = false },
+                title = { Text("Rest Timer Settings", color = Color.White, fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text("Configure rest countdown duration in seconds:", color = Slate300, fontSize = 12.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = tempRest,
+                            onValueChange = { tempRest = it },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Teal400, unfocusedBorderColor = Slate700, focusedTextColor = Color.White),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val rSecs = tempRest.toIntOrNull() ?: 90
+                            restTimeTotal = maxOf(5, rSecs)
+                            showRestSettingsDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Teal400)
+                    ) {
+                        Text("Save", color = Slate950)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRestSettingsDialog = false }) {
+                        Text("Cancel", color = Slate400)
+                    }
+                },
+                containerColor = Slate900
+            )
         }
 
         // --- CANCEL WORKOUT CONFIRMATION ---
@@ -479,6 +709,39 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Persistent Active Workout floating resume banner when minimized
+            if (activeSessionName != null) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isWorkoutMinimized = false },
+                        colors = CardDefaults.cardColors(containerColor = Teal400.copy(alpha = 0.12f)),
+                        border = BorderStroke(1.dp, Teal400),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Teal400, modifier = Modifier.size(24.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Active Workout: $activeSessionName", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Tap to resume workout in progress", color = Slate400, fontSize = 11.sp)
+                                }
+                            }
+                            Icon(Icons.Default.ChevronRight, contentDescription = "Resume", tint = Teal400)
+                        }
+                    }
+                }
+            }
+
+            // 1. Quick Start Section
             item {
                 Text(
                     text = "Quick Start",
@@ -490,9 +753,11 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                 
                 Button(
                     onClick = {
-                        activeSessionName = "Morning Workout"
+                        activeSessionName = getTemporalWorkoutName()
                         isStopwatchRunning = true
                         stopwatchSeconds = 0
+                        isWorkoutMinimized = false
+                        activeExercises.clear()
                         // Seed basic empty exercise to start
                         activeExercises.add(
                             ActiveExercise(
@@ -515,9 +780,171 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                 }
             }
 
+            // 2. Completed Workouts Registry
             item {
                 Text(
-                    text = "Style workouts with Templates",
+                    text = "Completed Workouts Registry",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Slate300,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            if (completedWorkouts.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Slate900.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            Text("No workout sessions completed yet. Finish a workout to log details here!", color = Slate500, fontSize = 12.sp, textAlign = TextAlign.Center)
+                        }
+                    }
+                }
+            } else {
+                items(completedWorkouts.take(5)) { session ->
+                    var isExpanded by remember { mutableStateOf(false) }
+                    val sdf = remember { SimpleDateFormat("MMM dd, yyyy • hh:mm a", Locale.getDefault()) }
+                    val dateStr = sdf.format(Date(session.timestamp))
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { isExpanded = !isExpanded },
+                        colors = CardDefaults.cardColors(containerColor = Slate900),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(session.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                    Text(dateStr, color = Slate400, fontSize = 11.sp)
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.AccessTime, contentDescription = null, tint = Amber400, modifier = Modifier.size(14.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("${session.durationMinutes}m", color = Amber400, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(
+                                        imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = "Details toggle",
+                                        tint = Slate400
+                                    )
+                                }
+                            }
+
+                            if (session.notes != null) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("Note: ${session.notes}", color = Slate300, fontSize = 11.sp, style = TextStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic))
+                            }
+
+                            AnimatedVisibility(visible = isExpanded) {
+                                Column(modifier = Modifier.padding(top = 10.dp)) {
+                                    Divider(color = Slate800, thickness = 1.dp)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text("Logged Exercises:", color = Teal400, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    // Parse and render exercise records
+                                    val exercises = session.exercisesJson.split(";").filter { it.isNotBlank() }
+                                    exercises.forEach { ex ->
+                                        val parts = ex.split("|")
+                                        if (parts.size >= 3) {
+                                            val exName = parts[0]
+                                            val sets = parts[2].split(",").filter { it.isNotBlank() }
+                                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                                Text(exName, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                sets.forEach { setDetails ->
+                                                    Text("  • $setDetails", color = Slate300, fontSize = 11.sp)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. User Templates Block
+            item {
+                Text(
+                    text = "User Templates Block",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Slate300,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            if (userRoutines.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Slate900.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                            Text("No custom routines built yet. Create one under 'Routines' tab to use as templates here!", color = Slate500, fontSize = 12.sp, textAlign = TextAlign.Center)
+                        }
+                    }
+                }
+            } else {
+                items(userRoutines) { routine ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                activeSessionName = routine.name
+                                isStopwatchRunning = true
+                                stopwatchSeconds = 0
+                                activeExercises.clear()
+                                val exercisesList = routine.exercisesListJson.split(";").filter { it.isNotBlank() }
+                                exercisesList.forEach { exName ->
+                                    activeExercises.add(
+                                        ActiveExercise(
+                                            name = exName.trim(),
+                                            sets = mutableStateListOf(
+                                                ActiveSet(weight = "60", reps = "10"),
+                                                ActiveSet(weight = "60", reps = "8")
+                                            )
+                                        )
+                                    )
+                                }
+                                isWorkoutMinimized = false
+                                Toast.makeText(context, "Started ${routine.name} Template", Toast.LENGTH_SHORT).show()
+                            },
+                        colors = CardDefaults.cardColors(containerColor = Slate900),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(routine.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text(routine.description, color = Slate400, fontSize = 11.sp, maxLines = 1)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = "Start Template", tint = Teal400)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Suggested Templates Block
+            item {
+                Text(
+                    text = "Suggested Templates Block",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = Slate300,
@@ -537,6 +964,7 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                         activeSessionName = name
                         isStopwatchRunning = true
                         stopwatchSeconds = 0
+                        isWorkoutMinimized = false
                         activeExercises.clear()
                         exercisesList.forEach { exName ->
                             activeExercises.add(
@@ -565,6 +993,7 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                         activeSessionName = name
                         isStopwatchRunning = true
                         stopwatchSeconds = 0
+                        isWorkoutMinimized = false
                         activeExercises.clear()
                         exercisesList.forEach { exName ->
                             activeExercises.add(
@@ -595,6 +1024,7 @@ fun WorkoutSessionScreen(viewModel: HealthViewModel) {
                         activeSessionName = name
                         isStopwatchRunning = true
                         stopwatchSeconds = 0
+                        isWorkoutMinimized = false
                         activeExercises.clear()
                         exercisesList.forEach { exName ->
                             activeExercises.add(
@@ -687,7 +1117,11 @@ fun ActiveExerciseCard(
     onRemoveSet: (Int) -> Unit,
     onRemoveExercise: () -> Unit,
     onSetCheckedChange: (Int, Boolean) -> Unit,
-    onSetTypeChange: (Int, String) -> Unit
+    onSetTypeChange: (Int, String) -> Unit,
+    activeRestingSetIndex: Pair<String, Int>?,
+    restTimeRemaining: Int?,
+    restTimeTotal: Int,
+    onSkipRest: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var exerciseNoteText by remember { mutableStateOf("") }
@@ -961,6 +1395,36 @@ fun ActiveExerciseCard(
                         )
                     }
                 }
+
+                if (activeRestingSetIndex == Pair(exercise.name, sIdx) && restTimeRemaining != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp, horizontal = 12.dp)
+                            .background(Teal500.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                            .border(1.dp, Teal400.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Timer, contentDescription = null, tint = Teal400, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Resting: ${restTimeRemaining}s / ${restTimeTotal}s",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        TextButton(
+                            onClick = onSkipRest,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("Skip Timer", color = Crimson400, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -1051,6 +1515,7 @@ fun RestTimerOverlay(
 }
 
 // --- POPUP DIALOG PANEL FOR ADDING EXERCISES ---
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExercisesDialog(
     onDismiss: () -> Unit,
@@ -1058,64 +1523,178 @@ fun AddExercisesDialog(
 ) {
     var searchQuery by remember { mutableStateOf("") }
     val selectedItems = remember { mutableStateListOf<String>() }
-    
-    val allExercises = listOf(
-        "Barbell Squats", "Barbell Bench Press", "Barbell Row", "Overhead Press", "Deadlift",
-        "Incline Dumbbell Press", "Overhead Dumbbell Press", "Lateral Raises", "Triceps Rope Pushdown",
-        "Lat Pulldown", "Seated Cable Row", "Barbell Bicep Curl", "Hammer Curls", "Dumbbell Flyes",
-        "Chest Fly (Pec Deck)", "Push-ups", "Cable Crossover", "Decline Bench Press", "Chest Dips",
-        "Pull-ups", "Chin-ups", "Lat Pullover", "Hyperextensions", "Face Pulls", "Front Raises",
-        "Reverse Pec Deck", "Bicep Curl (Dumbbell)", "Concentration Curl", "Preacher Curl",
-        "Tricep Overhead Extension", "Skull Crushers", "Close Grip Bench Press", "Leg Press",
-        "Lying Leg Curls", "Leg Extensions", "Romanian Deadlift", "Calf Raises", "Abs Crunches",
-        "Plank", "Leg Raises", "Russian Twists", "Treadmill Running", "Elliptical Cardio"
+    var selectedFilter by remember { mutableStateOf("All") }
+    var isSortAscending by remember { mutableStateOf(true) }
+    var showCustomExercisePrompt by remember { mutableStateOf(false) }
+    var showArchiveRegistryDialog by remember { mutableStateOf(false) }
+    var showOverflowMenu by remember { mutableStateOf(false) }
+    val customCreatedExercises = remember { mutableStateListOf<String>() }
+
+    val exerciseCategories = mapOf(
+        "Chest" to listOf("Barbell Bench Press", "Incline Dumbbell Press", "Dumbbell Flyes", "Chest Fly (Pec Deck)", "Push-ups", "Cable Crossover", "Decline Bench Press", "Chest Dips"),
+        "Back" to listOf("Barbell Row", "Lat Pulldown", "Seated Cable Row", "Pull-ups", "Chin-ups", "Lat Pullover", "Hyperextensions", "Face Pulls"),
+        "Legs" to listOf("Barbell Squats", "Leg Press", "Lying Leg Curls", "Leg Extensions", "Romanian Deadlift", "Calf Raises"),
+        "Arms" to listOf("Overhead Press", "Overhead Dumbbell Press", "Lateral Raises", "Triceps Rope Pushdown", "Barbell Bicep Curl", "Hammer Curls", "Front Raises", "Reverse Pec Deck", "Bicep Curl (Dumbbell)", "Concentration Curl", "Preacher Curl", "Tricep Overhead Extension", "Skull Crushers", "Close Grip Bench Press"),
+        "Core" to listOf("Abs Crunches", "Plank", "Leg Raises", "Russian Twists"),
+        "Cardio" to listOf("Treadmill Running", "Elliptical Cardio")
     )
 
-    val filteredList = allExercises.filter { it.contains(searchQuery, ignoreCase = true) }
+    val allExercisesCombined = remember(customCreatedExercises) {
+        val base = listOf(
+            "Barbell Squats", "Barbell Bench Press", "Barbell Row", "Overhead Press", "Deadlift",
+            "Incline Dumbbell Press", "Overhead Dumbbell Press", "Lateral Raises", "Triceps Rope Pushdown",
+            "Lat Pulldown", "Seated Cable Row", "Barbell Bicep Curl", "Hammer Curls", "Dumbbell Flyes",
+            "Chest Fly (Pec Deck)", "Push-ups", "Cable Crossover", "Decline Bench Press", "Chest Dips",
+            "Pull-ups", "Chin-ups", "Lat Pullover", "Hyperextensions", "Face Pulls", "Front Raises",
+            "Reverse Pec Deck", "Bicep Curl (Dumbbell)", "Concentration Curl", "Preacher Curl",
+            "Tricep Overhead Extension", "Skull Crushers", "Close Grip Bench Press", "Leg Press",
+            "Lying Leg Curls", "Leg Extensions", "Romanian Deadlift", "Calf Raises", "Abs Crunches",
+            "Plank", "Leg Raises", "Russian Twists", "Treadmill Running", "Elliptical Cardio"
+        )
+        (base + customCreatedExercises).distinct()
+    }
+
+    val filteredList = remember(searchQuery, selectedFilter, isSortAscending, allExercisesCombined) {
+        allExercisesCombined.filter { name ->
+            val matchesSearch = name.contains(searchQuery, ignoreCase = true)
+            val matchesFilter = if (selectedFilter == "All") true else {
+                exerciseCategories[selectedFilter]?.contains(name) == true
+            }
+            matchesSearch && matchesFilter
+        }.sortedWith(if (isSortAscending) compareBy { it } else compareByDescending { it })
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Exercises", color = Color.White, fontWeight = FontWeight.Bold) },
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Add Exercises", color = Color.White, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { isSortAscending = !isSortAscending }) {
+                        Icon(
+                            imageVector = if (isSortAscending) Icons.Default.SortByAlpha else Icons.Default.Sort,
+                            contentDescription = "Sort exercises",
+                            tint = Teal400
+                        )
+                    }
+                    Box {
+                        IconButton(onClick = { showOverflowMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More Actions", tint = Slate400)
+                        }
+                        DropdownMenu(
+                            expanded = showOverflowMenu,
+                            onDismissRequest = { showOverflowMenu = false },
+                            modifier = Modifier.background(Slate900)
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Create Custom Exercise", color = Color.White) },
+                                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, tint = Teal400) },
+                                onClick = { showCustomExercisePrompt = true; showOverflowMenu = false }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Browse Archived Registry", color = Color.White) },
+                                leadingIcon = { Icon(Icons.Default.Archive, contentDescription = null, tint = Teal400) },
+                                onClick = { showArchiveRegistryDialog = true; showOverflowMenu = false }
+                            )
+                        }
+                    }
+                }
+            }
+        },
         text = {
-            Column(modifier = Modifier.fillMaxWidth().height(400.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().height(420.dp)) {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     placeholder = { Text("Search exercises...", color = Slate500) },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Slate400) },
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Teal400,
-                        unfocusedBorderColor = Slate700
+                        unfocusedBorderColor = Slate700,
+                        focusedTextColor = Color.White
                     )
                 )
 
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                // Filter scrollable Row
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                 ) {
-                    items(filteredList) { name ->
-                        val isSelected = selectedItems.contains(name)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) Teal400.copy(alpha = 0.15f) else Slate800)
-                                .clickable {
-                                    if (isSelected) selectedItems.remove(name) else selectedItems.add(name)
-                                }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            Checkbox(
-                                checked = isSelected,
-                                onCheckedChange = {
-                                    if (isSelected) selectedItems.remove(name) else selectedItems.add(name)
-                                },
-                                colors = CheckboxDefaults.colors(checkedColor = Teal400, uncheckedColor = Slate500)
+                    item {
+                        FilterChip(
+                            selected = selectedFilter == "All",
+                            onClick = { selectedFilter = "All" },
+                            label = { Text("All") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Teal400,
+                                selectedLabelColor = Slate950,
+                                containerColor = Slate800,
+                                labelColor = Slate300
                             )
+                        )
+                    }
+                    exerciseCategories.keys.forEach { cat ->
+                        item {
+                            FilterChip(
+                                selected = selectedFilter == cat,
+                                onClick = { selectedFilter = cat },
+                                label = { Text(cat) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Teal400,
+                                    selectedLabelColor = Slate950,
+                                    containerColor = Slate800,
+                                    labelColor = Slate300
+                                )
+                            )
+                        }
+                    }
+                }
+
+                if (filteredList.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        Text("No matching exercises found.", color = Slate500, fontSize = 14.sp)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredList) { name ->
+                            val isSelected = selectedItems.contains(name)
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        if (isSelected) selectedItems.remove(name) else selectedItems.add(name)
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) Teal400.copy(alpha = 0.12f) else Slate800
+                                ),
+                                border = BorderStroke(1.dp, if (isSelected) Teal400 else Color.Transparent)
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                        val catLabel = exerciseCategories.entries.find { it.value.contains(name) }?.key ?: "Custom"
+                                        Text(catLabel, color = Slate400, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
+                                    }
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Selected",
+                                            tint = Teal400,
+                                            modifier = Modifier
+                                                .align(Alignment.BottomEnd)
+                                                .size(22.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1136,6 +1715,81 @@ fun AddExercisesDialog(
         },
         containerColor = Slate900
     )
+
+    if (showCustomExercisePrompt) {
+        var customName by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showCustomExercisePrompt = false },
+            title = { Text("Create Custom Exercise", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("Enter the name of your custom exercise:", color = Slate300, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = customName,
+                        onValueChange = { customName = it },
+                        placeholder = { Text("e.g. Incline Cable Flyes") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Teal400,
+                            unfocusedBorderColor = Slate700,
+                            focusedTextColor = Color.White
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (customName.isNotBlank()) {
+                            customCreatedExercises.add(customName.trim())
+                            selectedItems.add(customName.trim())
+                            showCustomExercisePrompt = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Teal400)
+                ) {
+                    Text("Create", color = Slate950, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomExercisePrompt = false }) {
+                    Text("Cancel", color = Slate400)
+                }
+            },
+            containerColor = Slate900
+        )
+    }
+
+    if (showArchiveRegistryDialog) {
+        AlertDialog(
+            onDismissRequest = { showArchiveRegistryDialog = false },
+            title = { Text("Archived Exercises Registry", color = Color.White, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("The following exercises are currently archived to keep your list clean:", color = Slate300, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    listOf("Machine Hack Squat (Archived)", "Seated Calf Press (Archived)", "Decline Cable Flyes (Archived)").forEach { archivedName ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Archive, contentDescription = null, tint = Slate500, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(archivedName, color = Slate400, fontSize = 13.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showArchiveRegistryDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = Teal400)) {
+                    Text("Close", color = Slate950)
+                }
+            },
+            containerColor = Slate900
+        )
+    }
 }
 
 // Stopwatch formatting logic
