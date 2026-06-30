@@ -88,8 +88,8 @@ fun FitnessPlannerScreen(viewModel: HealthViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(8.dp)
-                .shadow(8.dp, shape = RoundedCornerShape(16.dp), clip = true),
-            shape = RoundedCornerShape(16.dp),
+                .shadow(12.dp, shape = RoundedCornerShape(24.dp), clip = true),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
                 containerColor = if (AppThemeState.themeMode == "white") Color.White else Slate900
             ),
@@ -98,7 +98,7 @@ fun FitnessPlannerScreen(viewModel: HealthViewModel) {
             AnimatedContent(
                 targetState = activePlannerTab,
                 transitionSpec = {
-                    (scaleIn(animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(animationSpec = tween(220)))
+                    (scaleIn(animationSpec = spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(animationSpec = tween(220)))
                         .togetherWith(scaleOut(animationSpec = spring(dampingRatio = 0.85f)) + fadeOut(animationSpec = tween(180)))
                 },
                 modifier = Modifier.fillMaxSize()

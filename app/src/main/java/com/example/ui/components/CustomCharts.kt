@@ -350,45 +350,59 @@ fun AnimatedGlass(
             val width = size.width
             val height = size.height
 
-            // 1. Draw glass container path (trapezoid shape for a glass look)
-            val glassOutline = Path().apply {
-                moveTo(width * 0.15f, height * 0.05f)
-                lineTo(width * 0.85f, height * 0.05f)
-                lineTo(width * 0.75f, height * 0.95f)
-                lineTo(width * 0.25f, height * 0.95f)
+            // 1. Draw modern sleek profile glass container (beaker/capsule rounded trapezoid)
+            val containerPath = Path().apply {
+                moveTo(width * 0.15f, height * 0.05f) // Top left
+                lineTo(width * 0.85f, height * 0.05f) // Top right
+                lineTo(width * 0.85f, height * 0.82f) // Down to bottom-right curve start
+                quadraticTo(width * 0.85f, height * 0.95f, width * 0.65f, height * 0.95f) // Smooth curve to bottom-right corner
+                lineTo(width * 0.35f, height * 0.95f) // Bottom flat base edge
+                quadraticTo(width * 0.15f, height * 0.95f, width * 0.15f, height * 0.82f) // Smooth curve to bottom-left corner
                 close()
             }
 
-            // 2. Draw glass water fill with clipping path so water stays inside glass shape
+            // 2. Draw glass water fill with clipping path so water stays perfectly inside the modern profile shape
             if (fillProgress > 0.01f) {
-                clipPath(glassOutline) {
+                clipPath(containerPath) {
                     val waterHeight = (height * 0.90f) * fillProgress
                     val waterTopY = height * 0.95f - waterHeight
 
                     val waterPath = Path().apply {
-                        moveTo(0f, height)
-                        lineTo(width, height)
-                        lineTo(width, waterTopY)
-
-                        // Generate a flow wave on the surface
-                        val waveAmplitude = 4.dp.toPx() * (1f - fillProgress).coerceAtLeast(0.2f)
-                        val pointsCount = 20
+                        moveTo(width * 0.15f, height * 0.95f) // Start at bottom left
+                        lineTo(width * 0.85f, height * 0.95f) // Line to bottom right
+                        lineTo(width * 0.85f, waterTopY)      // Up to water surface level on the right
+                        
+                        // y = A * sin(b * x + c) — continuous mathematical sine wave executing continuously
+                        val amplitude = 5.dp.toPx() * if (fillProgress < 0.98f) 1.2f else 0.15f
+                        val frequency = (2f * Math.PI.toFloat()) / (width * 0.7f) // Wave parameter b (exactly matching container width)
+                        val pointsCount = 40
+                        
                         for (i in pointsCount downTo 0) {
-                            val x = (width / pointsCount) * i
-                            val y = waterTopY + waveAmplitude * kotlin.math.sin((i.toFloat() / pointsCount.toFloat() * 2f * Math.PI.toFloat()) + phase)
-                            lineTo(x, y)
+                            val px = width * 0.15f + (width * 0.70f / pointsCount) * i
+                            val py = waterTopY + amplitude * kotlin.math.sin(frequency * px - phase)
+                            lineTo(px, py)
                         }
                         close()
                     }
 
-                    drawPath(
-                        path = waterPath,
-                        color = Teal400.copy(alpha = 0.85f)
+                    // Smooth blue filling gradient transitioning from bottom to top
+                    val oceanGradient = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF38BDF8).copy(alpha = 0.90f), // Luminous light-sky blue at ripple surface
+                            Color(0xFF0284C7).copy(alpha = 0.95f)  // Deep rich ocean blue at bottom base
+                        ),
+                        startY = waterTopY,
+                        endY = height * 0.95f
                     )
 
-                    // Draw floating ambient bubbles inside the filled glass portion
+                    drawPath(
+                        path = waterPath,
+                        brush = oceanGradient
+                    )
+
+                    // Draw floating ambient bubbles inside the filled portion
                     if (fillProgress > 0.15f) {
-                        val bubbleColor = Color.White.copy(alpha = 0.35f)
+                        val bubbleColor = Color.White.copy(alpha = 0.4f)
                         val bubbleX1 = width * 0.35f
                         val bubbleY1 = waterTopY + (waterHeight * 0.4f) + 4.dp.toPx() * kotlin.math.cos(phase * 1.5f)
                         drawCircle(color = bubbleColor, radius = 3.dp.toPx(), center = Offset(bubbleX1, bubbleY1))
@@ -404,19 +418,19 @@ fun AnimatedGlass(
                 }
             }
 
-            // 3. Draw glass outline itself (semi-transparent border)
+            // 3. Draw glass container outline itself (semi-transparent elegant boundary)
             drawPath(
-                path = glassOutline,
-                color = Slate400,
+                path = containerPath,
+                color = if (isFilled) Color(0xFF38BDF8).copy(alpha = 0.85f) else Color(0xFF64748B).copy(alpha = 0.45f),
                 style = Stroke(width = 2.dp.toPx())
             )
 
-            // 4. Draw lip of the glass (top rim ellipse)
-            drawOval(
-                color = Slate400,
-                topLeft = Offset(width * 0.15f, height * 0.025f),
-                size = Size(width * 0.70f, height * 0.05f),
-                style = Stroke(width = 1.5.dp.toPx())
+            // 4. Draw modern minimalist flat rim lip of the glass at the top opening
+            drawLine(
+                color = if (isFilled) Color(0xFF38BDF8).copy(alpha = 0.85f) else Color(0xFF64748B).copy(alpha = 0.45f),
+                start = Offset(width * 0.15f, height * 0.05f),
+                end = Offset(width * 0.85f, height * 0.05f),
+                strokeWidth = 2.5.dp.toPx()
             )
         }
     }

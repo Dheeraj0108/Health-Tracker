@@ -67,6 +67,7 @@ import java.util.Locale
 fun MainAppScreen(viewModel: HealthViewModel) {
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(0) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
 
     // Observers
     val waterLogs by viewModel.waterLogs.collectAsStateWithLifecycle()
@@ -113,7 +114,6 @@ fun MainAppScreen(viewModel: HealthViewModel) {
                 },
                 actions = {
                     var showThemeMenu by remember { mutableStateOf(false) }
-                    var showSettingsDialog by remember { mutableStateOf(false) }
 
                     IconButton(
                         onClick = { showSettingsDialog = true },
@@ -262,8 +262,8 @@ fun MainAppScreen(viewModel: HealthViewModel) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(8.dp)
-                    .shadow(12.dp, shape = RoundedCornerShape(24.dp), clip = true),
-                shape = RoundedCornerShape(24.dp),
+                    .shadow(16.dp, shape = RoundedCornerShape(28.dp), clip = true),
+                shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = if (AppThemeState.themeMode == "white") Color.White else Slate900
                 ),
@@ -272,13 +272,13 @@ fun MainAppScreen(viewModel: HealthViewModel) {
                 AnimatedContent(
                     targetState = selectedTab,
                     transitionSpec = {
-                        (scaleIn(animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(animationSpec = tween(220)))
+                        (scaleIn(animationSpec = spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(animationSpec = tween(220)))
                             .togetherWith(scaleOut(animationSpec = spring(dampingRatio = 0.85f)) + fadeOut(animationSpec = tween(180)))
                     },
                     modifier = Modifier.fillMaxSize()
                 ) { targetTab ->
                     when (targetTab) {
-                        0 -> DashboardTab(viewModel)
+                        0 -> DashboardTab(viewModel, onOpenSettings = { showSettingsDialog = true })
                         1 -> FitnessPlannerScreen(viewModel)
                         2 -> NutriSnapTab(viewModel)
                         3 -> BodyTrackerScreen(viewModel)
@@ -297,7 +297,7 @@ fun getDrawableId(name: String?, context: android.content.Context): Int {
 }
 
 @Composable
-fun DashboardTab(viewModel: HealthViewModel) {
+fun DashboardTab(viewModel: HealthViewModel, onOpenSettings: () -> Unit) {
     val context = LocalContext.current
 
     val googleUserSignedIn by viewModel.googleUserSignedIn.collectAsStateWithLifecycle()
@@ -324,7 +324,6 @@ fun DashboardTab(viewModel: HealthViewModel) {
     var showCoffeePopup by remember { mutableStateOf(false) }
     var showFloatingShortcutBubble by remember { mutableStateOf(false) }
     var showQuickWorkoutConfetti by remember { mutableStateOf(false) }
-    var showEditTargetsDialog by remember { mutableStateOf(false) }
     var quickWeightInput by remember { mutableStateOf("") }
     var quickNoteInput by remember { mutableStateOf("") }
 
@@ -410,17 +409,17 @@ fun DashboardTab(viewModel: HealthViewModel) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
                             modifier = Modifier
-                                .clickable { showEditTargetsDialog = true }
+                                .clickable { onOpenSettings() }
                                 .padding(vertical = 4.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Edit,
-                                contentDescription = "Edit Targets",
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Edit Targets in Settings",
                                 tint = Teal400,
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = "Adjust Daily Targets",
+                                text = "Adjust Daily Targets in Settings",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = Teal400,
                                 fontWeight = FontWeight.Bold
@@ -1759,79 +1758,7 @@ ConfettiOverlay(
         )
     }
 
-    if (showEditTargetsDialog) {
-        var tempWater by remember { mutableStateOf(goalWater.toDouble()) }
-        var tempCaffeine by remember { mutableStateOf(goalCaffeine.toDouble()) }
-        var tempExercise by remember { mutableStateOf(goalExercise.toDouble()) }
-        var tempSleep by remember { mutableStateOf(goalSleep) }
 
-        AlertDialog(
-            onDismissRequest = { showEditTargetsDialog = false },
-            title = {
-                Text(
-                    text = "Adjust Daily Targets",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            },
-            text = {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    GoalAdjusterItem(
-                        title = "Hydration Goal (ml)",
-                        value = tempWater,
-                        range = 500.0..5000.0,
-                        step = 100.0,
-                        onValueChange = { tempWater = it }
-                    )
-
-                    GoalAdjusterItem(
-                        title = "Caffeine Limit (mg)",
-                        value = tempCaffeine,
-                        range = 0.0..1000.0,
-                        step = 20.0,
-                        onValueChange = { tempCaffeine = it }
-                    )
-
-                    GoalAdjusterItem(
-                        title = "Exercise Target (mins)",
-                        value = tempExercise,
-                        range = 10.0..180.0,
-                        step = 5.0,
-                        onValueChange = { tempExercise = it }
-                    )
-
-                    GoalAdjusterItem(
-                        title = "Sleep Target (hours)",
-                        value = tempSleep,
-                        range = 4.0..12.0,
-                        step = 0.5,
-                        onValueChange = { tempSleep = it }
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.updateGoal("water_ml", tempWater)
-                        viewModel.updateGoal("caffeine_mg", tempCaffeine)
-                        viewModel.updateGoal("exercise_min", tempExercise)
-                        viewModel.updateGoal("sleep_hours", tempSleep)
-                        android.widget.Toast.makeText(context, "Targets updated successfully!", android.widget.Toast.LENGTH_SHORT).show()
-                        showEditTargetsDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Teal500)
-                ) {
-                    Text("Save & Close", color = Slate950, fontWeight = FontWeight.Bold)
-                }
-            },
-            containerColor = Slate900,
-            shape = RoundedCornerShape(16.dp)
-        )
-    }
 }
 
 @Composable
@@ -3242,8 +3169,8 @@ fun ExplorerCompositeScreen(viewModel: HealthViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(8.dp)
-                .shadow(8.dp, shape = RoundedCornerShape(16.dp), clip = true),
-            shape = RoundedCornerShape(16.dp),
+                .shadow(12.dp, shape = RoundedCornerShape(24.dp), clip = true),
+            shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(
                 containerColor = if (AppThemeState.themeMode == "white") Color.White else Slate900
             ),
@@ -3252,7 +3179,7 @@ fun ExplorerCompositeScreen(viewModel: HealthViewModel) {
             AnimatedContent(
                 targetState = selectedTopTab,
                 transitionSpec = {
-                    (scaleIn(animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(animationSpec = tween(220)))
+                    (scaleIn(animationSpec = spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow)) + fadeIn(animationSpec = tween(220)))
                         .togetherWith(scaleOut(animationSpec = spring(dampingRatio = 0.85f)) + fadeOut(animationSpec = tween(180)))
                 },
                 modifier = Modifier.fillMaxSize()
@@ -3746,6 +3673,48 @@ fun SettingsDialog(
                                     range = 20.0..200.0,
                                     step = 5.0,
                                     onValueChange = { tempFat = it }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Adjust Daily Targets (Vitals & Activity)", style = MaterialTheme.typography.titleSmall, color = Teal400, fontWeight = FontWeight.Bold)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Slate800),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                GoalAdjusterItem(
+                                    title = "Hydration Goal (ml)",
+                                    value = tempWater,
+                                    range = 500.0..5000.0,
+                                    step = 100.0,
+                                    onValueChange = { tempWater = it }
+                                )
+                                GoalAdjusterItem(
+                                    title = "Caffeine Limit (mg)",
+                                    value = tempCaffeine,
+                                    range = 0.0..1000.0,
+                                    step = 20.0,
+                                    onValueChange = { tempCaffeine = it }
+                                )
+                                GoalAdjusterItem(
+                                    title = "Exercise Target (mins)",
+                                    value = tempExercise,
+                                    range = 10.0..300.0,
+                                    step = 5.0,
+                                    onValueChange = { tempExercise = it }
+                                )
+                                GoalAdjusterItem(
+                                    title = "Sleep Goal (hours)",
+                                    value = tempSleep,
+                                    range = 4.0..14.0,
+                                    step = 0.5,
+                                    onValueChange = { tempSleep = it }
                                 )
                             }
                         }
